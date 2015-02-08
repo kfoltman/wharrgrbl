@@ -1,9 +1,9 @@
 import math
 import sys
 from PyQt4 import QtCore, QtGui
-import sender
-from helpers import MenuHelper
-from config import Settings
+from sender import sender
+from sender.helpers import MenuHelper
+from sender.config import Settings
 
 class CNCApplication(QtGui.QApplication):
     pass
