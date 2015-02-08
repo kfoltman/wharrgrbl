@@ -139,46 +139,79 @@ class GrblInterface(QtCore.QObject):
         return mode == 'Idle'
 
 class CNCJogger(QtGui.QGroupBox):
+    steps_changed = QtCore.pyqtSignal([])
     def __init__(self, grbl):
         QtGui.QGroupBox.__init__(self)
         self.setTitle("Jogging (Alt+arrows/PgUp/PgDn)")
         self.grbl = grbl
+        self.distxy = 10
+        self.distz = 1
         self.initUI()
     def checkKeyPressEvent(self, e):
         if e.key() == QtCore.Qt.Key_Left:
-            self.handleButton(-1, 0, 0)
+            self.handleButton('X', -1)
         elif e.key() == QtCore.Qt.Key_Up:
-            self.handleButton(0, 1, 0)
+            self.handleButton('Y', 1)
         elif e.key() == QtCore.Qt.Key_Down:
-            self.handleButton(0, -1, 0)
+            self.handleButton('Y', -1)
         elif e.key() == QtCore.Qt.Key_Right:
-            self.handleButton(1, 0, 0)
+            self.handleButton('X', 1)
         elif e.key() == QtCore.Qt.Key_PageUp:
-            self.handleButton(0, 0, 0.1)
+            self.handleButton('Z', 1)
         elif e.key() == QtCore.Qt.Key_PageDown:
-            self.handleButton(0, 0, -0.1)
+            self.handleButton('Z', -1)
         else:
             return False
         return True
-    def makeButton(self, name, dx, dy, dz, layout, locx, locy):
+    def makeButton(self, name, layout, locx, locy):
         button = QtGui.QPushButton(name)
-        button.clicked.connect(lambda: self.handleButton(dx, dy, dz))
+        button.clicked.connect(lambda: self.handleButton(name[0], 1 if name[1] == '+' else -1))
         button.setFocusPolicy(QtCore.Qt.NoFocus)
         layout.addWidget(button, locx, locy)
-    def handleButton(self, dx, dy, dz):
-        m = 1
+    def handleButton(self, axis, dist):
+        dx = 1 if axis == 'X' else 0
+        dy = 1 if axis == 'Y' else 0
+        dz = 1 if axis == 'Z' else 0
+        if axis == 'Z':
+            m = self.distz * dist
+        else:
+            m = self.distxy * dist
         if QtGui.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier:
-            m = 10
+            m *= 10
         self.grbl.send_line("G91 G0 X%f Y%f Z%f" % (m * dx, m * dy, m * dz))
+    def handleSteps(self, var, dist):
+        print var, dist
+        setattr(self, var, dist)
+        self.steps_changed.emit()
     def initUI(self):        
         layout = QtGui.QGridLayout()
         self.setLayout(layout)
-        self.makeButton("Y+", 0, 1, 0, layout, 0, 1)
-        self.makeButton("X-", -1, 0, 0, layout, 1, 0)
-        self.makeButton("X+", 1, 0, 0, layout, 1, 2)
-        self.makeButton("Y-", 0, -1, 0, layout, 2, 1)
-        self.makeButton("Z+", 0, 0, 0.1, layout, 0, 3)
-        self.makeButton("Z-", 0, 0, -0.1, layout, 2, 3)
+        self.makeButton("Y+", layout, 0, 1)
+        self.makeButton("X-", layout, 1, 0)
+        self.makeButton("X+", layout, 1, 2)
+        self.makeButton("Y-", layout, 2, 1)
+        self.makeButton("Z+", layout, 0, 5)
+        self.makeButton("Z-", layout, 2, 5)
+        def addButton(steps, var, d):
+            rb = QtGui.QRadioButton("%smm" % d)
+            rb.setAutoExclusive(False)
+            rb.clicked.connect(lambda: self.handleSteps(var, d))
+            self.steps_changed.connect(lambda: rb.setChecked(getattr(self, var) == d))
+            steps.addWidget(rb)
+        steps = QtGui.QVBoxLayout()
+        layout.addLayout(steps, 0, 3, 4, 1)
+        for d in [0.1, 1, 10, 50]:
+            addButton(steps, 'distxy', d)
+
+        frm = QtGui.QFrame()
+        frm.setFrameStyle(QtGui.QFrame.VLine)
+        layout.addWidget(frm, 0, 4, 4, 1)
+
+        steps = QtGui.QVBoxLayout()
+        layout.addLayout(steps, 0, 6, 4, 1)
+        for d in [0.1, 1, 10, 50]:
+            addButton(steps, 'distz', d)
+        self.steps_changed.emit()
         
 class CNCPendant(QtGui.QGroupBox):
     def __init__(self, grbl):
