@@ -26,11 +26,11 @@ The generated gcode is simple enough to be interpreted correctly by a recent
 (0.9g) version of Grbl.
 
 ### TODO
-* double-sided milling
+* double-sided milling with some sort of auto alignment holes or support for pre-made fixed-size alignment jigs
 * roughing out large areas of copper with an endmill instead of v-bit
 * support for Z-probing
 * integration with gcode sender for advanced features like integrated
-auto-Z-probing, 
+auto-Z-probing and selective re-milling of underetched areas or nets
 
 
 ## Gcode sender UI
