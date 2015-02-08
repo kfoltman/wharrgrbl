@@ -2,7 +2,7 @@ import math
 import sys
 from PyQt4 import QtCore, QtGui
 from sender import sender
-from sender.helpers import MenuHelper
+from helpers.gui import MenuHelper
 from sender.config import Settings
 
 class CNCApplication(QtGui.QApplication):
