@@ -5,6 +5,12 @@ from sender import sender
 from helpers.gui import MenuHelper
 from sender.config import Settings
 
+class Fonts:
+    mediumFont = QtGui.QFont("Sans", 12)
+    mediumBoldFont = QtGui.QFont("Sans", 12, QtGui.QFont.Bold)
+    bigFont = QtGui.QFont("Sans", 14, QtGui.QFont.Bold)
+    bigBoldFont = QtGui.QFont("Sans", 14)
+
 class CNCApplication(QtGui.QApplication):
     pass
 
@@ -165,6 +171,7 @@ class CNCJogger(QtGui.QGroupBox):
         return True
     def makeButton(self, name, layout, locx, locy):
         button = QtGui.QPushButton(name)
+        button.setFont(Fonts.bigBoldFont)
         button.clicked.connect(lambda: self.handleButton(name[0], 1 if name[1] == '+' else -1))
         button.setFocusPolicy(QtCore.Qt.NoFocus)
         layout.addWidget(button, locx, locy)
@@ -241,6 +248,7 @@ class CNCPendant(QtGui.QGroupBox):
         cmdLayout.addWidget(self.cmdButton)
         
         self.modeWidget = QtGui.QLabel()
+        self.modeWidget.setFont(Fonts.mediumBoldFont)
         self.workWidgets = {}
         self.machineWidgets = {}
 
@@ -253,20 +261,26 @@ class CNCPendant(QtGui.QGroupBox):
         grid.addLayout(layout, 0, 0, 1, 3)
         
         layout = QtGui.QGridLayout()
-        layout.addWidget(QtGui.QLabel("Coord"), 0, 0)
-        layout.addWidget(QtGui.QLabel("Work"), 0, 1)
-        layout.addWidget(QtGui.QLabel("Machine"), 0, 2)
-        layout.addWidget(QtGui.QLabel("Zero"), 0, 3)
+        layout.setColumnMinimumWidth(1, 14 * 6)
+        layout.setColumnMinimumWidth(2, 14 * 6)
+        alignment = {"|" : QtCore.Qt.AlignCenter, "<" : QtCore.Qt.AlignLeft, ">" : QtCore.Qt.AlignRight}
+        for col, name in enumerate(['|Coord', ">Work", ">Machine", "|Zero"]):
+            label = QtGui.QLabel(name[1:])
+            label.setAlignment(alignment[name[0]] | QtCore.Qt.AlignBottom)
+            layout.addWidget(label, 0, col)
         alignment = QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter
         for index, axis in enumerate(['X', 'Y', 'Z']):
             label = QtGui.QLabel(axis)
-            label.setAlignment(alignment)
+            label.setFont(Fonts.bigBoldFont)
+            label.setAlignment(QtCore.Qt.AlignCenter | QtCore.Qt.AlignVCenter)
             layout.addWidget(label, index + 1, 0)
-            coordWidget = QtGui.QLabel("")
+            coordWidget = QtGui.QLabel("-")
+            coordWidget.setFont(Fonts.bigFont)
             coordWidget.setAlignment(alignment)
             layout.addWidget(coordWidget, index + 1, 1)
             self.workWidgets[axis] = coordWidget
-            coordWidget = QtGui.QLabel("")
+            coordWidget = QtGui.QLabel("-")
+            coordWidget.setFont(Fonts.bigFont)
             coordWidget.setAlignment(alignment)
             layout.addWidget(coordWidget, index + 1, 2)
             self.machineWidgets[axis] = coordWidget
