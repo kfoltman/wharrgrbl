@@ -241,12 +241,8 @@ class CNCPendant(QtGui.QGroupBox):
         cmdLayout.addWidget(self.cmdButton)
         
         self.modeWidget = QtGui.QLabel()
-        self.workXWidget = QtGui.QLabel()
-        self.workYWidget = QtGui.QLabel()
-        self.workZWidget = QtGui.QLabel()
-        self.machineXWidget = QtGui.QLabel()
-        self.machineYWidget = QtGui.QLabel()
-        self.machineZWidget = QtGui.QLabel()
+        self.workWidgets = {}
+        self.machineWidgets = {}
 
         grid = QtGui.QGridLayout()
 
@@ -256,22 +252,31 @@ class CNCPendant(QtGui.QGroupBox):
         layout.addRow("Status:", self.modeWidget)
         grid.addLayout(layout, 0, 0, 1, 3)
         
-        layout = QtGui.QFormLayout()
-        layout.setLabelAlignment(QtCore.Qt.AlignRight)
-        layout.addRow(QtGui.QLabel("Work"))
-        layout.addRow("X", self.workXWidget)
-        layout.addRow("Y", self.workYWidget)
-        layout.addRow("Z", self.workZWidget)
+        layout = QtGui.QGridLayout()
+        layout.addWidget(QtGui.QLabel("Coord"), 0, 0)
+        layout.addWidget(QtGui.QLabel("Work"), 0, 1)
+        layout.addWidget(QtGui.QLabel("Machine"), 0, 2)
+        layout.addWidget(QtGui.QLabel("Zero"), 0, 3)
+        alignment = QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter
+        for index, axis in enumerate(['X', 'Y', 'Z']):
+            label = QtGui.QLabel(axis)
+            label.setAlignment(alignment)
+            layout.addWidget(label, index + 1, 0)
+            coordWidget = QtGui.QLabel("")
+            coordWidget.setAlignment(alignment)
+            layout.addWidget(coordWidget, index + 1, 1)
+            self.workWidgets[axis] = coordWidget
+            coordWidget = QtGui.QLabel("")
+            coordWidget.setAlignment(alignment)
+            layout.addWidget(coordWidget, index + 1, 2)
+            self.machineWidgets[axis] = coordWidget
+            zeroWidget = QtGui.QPushButton("Zero")
+            def q(axis):
+                return lambda: self.zeroAxis(axis)
+            zeroWidget.clicked.connect(q(axis))
+            layout.addWidget(zeroWidget, index + 1, 3)
         grid.addLayout(layout, 1, 0)
-        
-        layout = QtGui.QFormLayout()
-        layout.setLabelAlignment(QtCore.Qt.AlignRight)
-        layout.addRow(QtGui.QLabel("Machine"))
-        layout.addRow("X", self.machineXWidget)
-        layout.addRow("Y", self.machineYWidget)
-        layout.addRow("Z", self.machineZWidget)
-        grid.addLayout(layout, 1, 1)
-        
+
         self.jogger = CNCJogger(self.grbl)
         grid.addWidget(self.jogger, 1, 2, 1, 1)
         
@@ -289,6 +294,10 @@ class CNCPendant(QtGui.QGroupBox):
         grid.addWidget(self.tableview, 2, 0, 1, 3)
         
         self.setLayout(grid)
+
+    def zeroAxis(self, axis):
+        print "Zero axis %s" % axis
+        self.grbl.send_line('G90 G10 L20 P0 %s0' % axis)
         
     def onTableDataChanged(self, topleft, bottomright):
         if bottomright.row() > self.tableMax:
@@ -310,22 +319,20 @@ class CNCPendant(QtGui.QGroupBox):
         self.modeWidget.setText(mode)
         self.cmdButton.setEnabled(self.grbl.canAcceptCommands(mode))
         self.jogger.setEnabled(self.grbl.canAcceptCommands(mode))
+        def update(axis, pos):
+            for i, a in enumerate(['X', 'Y', 'Z']):
+                axis[a].setText(fmt % pos[i])
+        def noUpdate(axis):
+            for a in ('X', 'Y', 'Z'):
+                axis[a].setText('')
         if 'WPos' in args:
-            self.workXWidget.setText(fmt % args['WPos'][0])
-            self.workYWidget.setText(fmt % args['WPos'][1])
-            self.workZWidget.setText(fmt % args['WPos'][2])
+            update(self.workWidgets, args['WPos'])
         else:
-            self.workXWidget.setText('')
-            self.workYWidget.setText('')
-            self.workZWidget.setText('')
+            noUpdate(self.workWidgets)
         if 'MPos' in args:
-            self.machineXWidget.setText(fmt % args['MPos'][0])
-            self.machineYWidget.setText(fmt % args['MPos'][1])
-            self.machineZWidget.setText(fmt % args['MPos'][2])
+            update(self.machineWidgets, args['MPos'])
         else:
-            self.machineXWidget.setText('')
-            self.machineYWidget.setText('')
-            self.machineZWidget.setText('')
+            noUpdate(self.machineWidgets)
 
     def onStatus(self):
         self.updateStatusWidgets(*self.grbl.getStatus())
