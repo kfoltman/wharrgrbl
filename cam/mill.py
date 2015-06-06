@@ -61,8 +61,11 @@ class PathGenerator(object):
         super(PathGenerator, self).__init__()
         self.view = view
         self.milling_params = milling_params
-        self.sizer = BoardSizer(view.board)
+        self.sizeBoard()
     
+    def sizeBoard(self):
+        self.sizer = BoardSizer(self.view.board)
+
     def mapPoint(self, x, y):
         if self.view.is_mirrored():
             x = self.sizer.maxpt[0] - x
