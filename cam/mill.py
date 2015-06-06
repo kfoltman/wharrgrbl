@@ -229,6 +229,7 @@ class EngravingOperation:
     plunge = 400
 
 class EdgeCuttingOperation:
+    endmill_dia = 0.8
     zsafe = 0.8
     zend = 30
     zsurface = 0
@@ -382,7 +383,7 @@ def cut_edges(gc, board, layer, milling_params):
         return _convpt(pt, view, sizer)
 
     operation = gc.operation
-    cuts = board.layers['Edge.Cuts']
+    cuts = board.layers[layer]
     all_lines = list(cuts.gr_lines)
     lastpt = (0, 0)
     
