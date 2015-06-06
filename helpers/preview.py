@@ -19,7 +19,7 @@ class PathPreview(QtGui.QWidget):
         
     def initUI(self):
         self.setMinimumSize(1024, 768)
-        self.setMouseTracking = True
+        self.setMouseTracking(True)
     
     def mousePressEvent(self, e):
         self.highlight_net = None
