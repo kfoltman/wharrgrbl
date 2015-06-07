@@ -26,7 +26,7 @@ class CAMMainWindow(QtGui.QMainWindow, MenuHelper):
         drill_holes_and_slots(gc, board, "B.Cu", self.milling_params)
         gc.end()
         gc = GcodeOutput("cuts.nc", EdgeCuttingOperation())
-        cut_edges(gc, board, "B.Cu", self.milling_params)
+        cut_edges(gc, board, "Edge.Cuts", self.milling_params)
         gc.end()
         sizer = BoardSizer(self.view.board)
         bsizex = abs(sizer.maxpt[0] - sizer.minpt[0] + 1.6)
