@@ -41,8 +41,8 @@ class GcodeExecHistoryModel(QtCore.QAbstractTableModel):
                 return "Command"
             else:
                 return "Status"
-        if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
-            return "%d" % (1 + section)
+        #if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+        #    return "%d" % (1 + section)
     def rowCount(self, parent):
         if parent.isValid():
             return 0
@@ -60,6 +60,10 @@ class GcodeExecHistoryModel(QtCore.QAbstractTableModel):
     def changeStatus(self, context, new_status):
         context.status = new_status
         self.dataChanged.emit(self.index(context.pos, 1), self.index(context.pos, 1))
+    def flags(self, index):
+        if index.column() == 0:
+            return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
+        return QtCore.Qt.NoItemFlags
 
 class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
     status = QtCore.pyqtSignal([])
@@ -254,6 +258,18 @@ class CNCPendant(QtGui.QGroupBox):
 
         layout = QtGui.QFormLayout()
         layout.setLabelAlignment(QtCore.Qt.AlignRight)
+        self.tableview = QtGui.QTableView()
+        self.tableview.setModel(self.grbl.history)
+        self.tableview.setColumnWidth(0, 480)
+        self.tableview.setColumnWidth(1, 160)
+        self.tableview.setMinimumWidth(700)
+        self.tableview.setMinimumHeight(300)
+        self.tableview.verticalHeader().hide()
+        self.tableview.resizeRowsToContents()
+        self.tableMax = 0
+        self.grbl.history.dataChanged.connect(self.onTableDataChanged)
+        self.grbl.history.rowsInserted.connect(self.onTableRowsInserted)
+        layout.addWidget(self.tableview)
         layout.addRow("Command:", cmdLayout)
         layout.addRow("Status:", self.modeWidget)
         grid.addLayout(layout, 0, 0, 1, 3)
@@ -292,19 +308,6 @@ class CNCPendant(QtGui.QGroupBox):
         self.jogger = CNCJogger(self.grbl)
         grid.addWidget(self.jogger, 1, 2, 1, 1)
         
-        self.tableview = QtGui.QTableView()
-        self.tableview.setModel(self.grbl.history)
-        self.tableview.setColumnWidth(0, 320)
-        self.tableview.setColumnWidth(1, 320)
-        self.tableview.setMinimumWidth(700)
-        self.tableview.setMinimumHeight(300)
-        self.tableview.verticalHeader().show()
-        self.tableview.resizeRowsToContents()
-        self.tableMax = 0
-        self.grbl.history.dataChanged.connect(self.onTableDataChanged)
-        self.grbl.history.rowsInserted.connect(self.onTableRowsInserted)
-        grid.addWidget(self.tableview, 2, 0, 1, 3)
-
         self.setLayout(grid)
 
     def zeroAxis(self, axis):
@@ -380,6 +383,7 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         self.setCentralWidget(self.pendant)
         self.setWindowTitle("KF's GRBL controller")
         self.configDialog = MachineConfigDialog(self.grbl.config_model)
+        self.pendant.cmdWidget.setFocus()
         
     def loadFile(self, fname):
         for l in open(fname, "r").readlines():
