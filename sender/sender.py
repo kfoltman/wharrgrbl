@@ -13,7 +13,7 @@ class SerialLineReader:
     def writeln(self, data):
         self.write(data + "\n")
     def poll(self):
-        buf = self.ser.read(100)
+        buf = self.ser.read(1024)
         self.data += buf
         while True:
             pos = self.data.find('\n')
@@ -67,6 +67,22 @@ class GrblStateMachine:
             self.confirm(*self.outqueue[0])
             self.outqueue.pop(0)
             return True
+        if inp[0] == '[' and inp[-1] == ']':
+            if ':' in inp:
+                par, values = inp[1:-1].split(":", 1)
+                self.handle_gcode_parameter(par, values)
+            else:
+                self.handle_gcode_state(inp[1:-1].split(" "))
+            return True
+        if inp[0] == '$':
+            var, value = inp.split('=', 1)
+            comment = ''
+            if value.find(' (') != -1:
+                value, comment = value.split(' (', 1)
+                if len(comment) and comment[-1] == ')':
+                    comment = comment[:-1]
+            self.handle_variable_value(var, value, comment)
+            return True
         raise ValueError, "Unexpected input: %s" % inp
     def handle_input(self):
         inp = self.reader.poll()
@@ -84,6 +100,13 @@ class GrblStateMachine:
         elif dtime > 10:
             self.process_cooked_status('Connect Timeout', {})
         return False
+    def handle_variable_value(self, var, value, comment):
+        print "%s -> %s (%s)" % (var, value, comment)
+    def handle_gcode_parameter(self, par, values):
+        print "%s -> %s" % (par, values)
+    def handle_gcode_state(self, values):
+        print "%s" % (", ".join(values))
+
     def flush(self):
         while len(outqueue):
             if not self.handle_input():

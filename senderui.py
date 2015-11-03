@@ -3,13 +3,8 @@ import sys
 from PyQt4 import QtCore, QtGui
 from sender import sender
 from helpers.gui import MenuHelper
-from sender.config import Settings
-
-class Fonts:
-    mediumFont = QtGui.QFont("Sans", 12)
-    mediumBoldFont = QtGui.QFont("Sans", 12, QtGui.QFont.Bold)
-    bigFont = QtGui.QFont("Sans", 14, QtGui.QFont.Bold)
-    bigBoldFont = QtGui.QFont("Sans", 14)
+from sender.config import Settings, Fonts
+from sender.config_window import *
 
 class CNCApplication(QtGui.QApplication):
     pass
@@ -48,7 +43,6 @@ class GcodeExecHistoryModel(QtCore.QAbstractTableModel):
                 return "Status"
         if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
             return "%d" % (1 + section)
-        return None
     def rowCount(self, parent):
         if parent.isValid():
             return 0
@@ -70,8 +64,9 @@ class GcodeExecHistoryModel(QtCore.QAbstractTableModel):
 class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
     status = QtCore.pyqtSignal([])
     line_received = QtCore.pyqtSignal([str])
-    def __init__(self, history_model, *args, **kwargs):
+    def __init__(self, history_model, config_model, *args, **kwargs):
         QtCore.QObject.__init__(self)
+        self.config_model = config_model
         self.history_model = history_model
         self.current_status = ('Initialized', {})
         sender.GrblStateMachine.__init__(self, Settings.device, Settings.speed)
@@ -90,6 +85,8 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         self.history_model.changeStatus(context, 'Confirmed')
     def error(self, line, context, error):
         self.history_model.changeStatus(context, error)
+    def handle_variable_value(self, var, value, comment):
+        self.config_model.handleVariableValue(var, value, comment)
     def try_pull(self):
         while True:
             context = self.history_model.pull()
@@ -109,9 +106,10 @@ class GrblInterface(QtCore.QObject):
         QtCore.QObject.__init__(self)
         self.grbl = None
         self.history = GcodeExecHistoryModel()
+        self.config_model = GrblConfigModel(self)
         self.startTimer(Settings.timer_interval)
     def connectToGrbl(self):
-        self.grbl = GrblStateMachineWithSignals(self.history)
+        self.grbl = GrblStateMachineWithSignals(self.history, self.config_model)
         self.grbl.status.connect(self.onStatus)
         self.grbl.line_received.connect(self.onLineReceived)
     def disconnectFromGrbl(self):
@@ -306,7 +304,7 @@ class CNCPendant(QtGui.QGroupBox):
         self.grbl.history.dataChanged.connect(self.onTableDataChanged)
         self.grbl.history.rowsInserted.connect(self.onTableRowsInserted)
         grid.addWidget(self.tableview, 2, 0, 1, 3)
-        
+
         self.setLayout(grid)
 
     def zeroAxis(self, axis):
@@ -376,10 +374,12 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         machineMenu.addAction(self.makeAction("&Restart", "F6", "Restart the machine", self.onMachineRestart))
         machineMenu.addAction(self.makeAction("&Soft reset", "Ctrl+X", "Soft reset the machine", self.onMachineSoftReset))
         machineMenu.addAction(self.makeAction("&Kill alarm", "", "Disarm the alarm", self.onMachineKillAlarm))
+        machineMenu.addAction(self.makeAction("&Configuration", "Ctrl+P", "Set machine configuration", self.onMachineConfiguration))
         self.updateActions()
         self.pendant = CNCPendant(self.grbl)
         self.setCentralWidget(self.pendant)
         self.setWindowTitle("KF's GRBL controller")
+        self.configDialog = MachineConfigDialog(self.grbl.config_model)
         
     def loadFile(self, fname):
         for l in open(fname, "r").readlines():
@@ -408,6 +408,9 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         self.grbl.send_line('$X')
     def onMachineHomingCycle(self):
         self.grbl.send_line('$H')
+    def onMachineConfiguration(self):
+        self.grbl.send_line('$$')
+        self.configDialog.show()
 
 def main():    
     app = CNCApplication(sys.argv)
