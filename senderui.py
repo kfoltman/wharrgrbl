@@ -229,7 +229,6 @@ class HistoryLineEdit(QtGui.QLineEdit):
         self.history_cursor = 0
         self.history.rowsInserted.connect(self.onHistoryRowsInserted)
     def onHistoryRowsInserted(self, index, ifrom, ito):
-        print "Insert %d-%d" % (ifrom, ito)
         #if self.history_cursor >= ifrom:
         #    self.history_cursor += ito - ifrom + 1
         self.history_cursor = ito + 1
