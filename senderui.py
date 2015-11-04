@@ -144,7 +144,7 @@ class GrblInterface(QtCore.QObject):
             raise ValueError("connection not established")
             
     def canAcceptCommands(self, mode):
-        return mode == 'Idle'
+        return mode not in ['Home', 'Alarm']
 
 class CNCJogger(QtGui.QGroupBox):
     steps_changed = QtCore.pyqtSignal([])
