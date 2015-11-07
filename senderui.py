@@ -453,7 +453,7 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         machineMenu.addAction(self.makeAction("&Homing cycle", "Ctrl+H", "Start homing cycle", self.onMachineHomingCycle))
         machineMenu.addAction(self.makeAction("&Feed hold", "F8", "Pause the machine", self.onMachineFeedHold))
         machineMenu.addAction(self.makeAction("&Restart", "F6", "Restart the machine", self.onMachineRestart))
-        machineMenu.addAction(self.makeAction("&Soft reset", "Ctrl+X", "Soft reset the machine", self.onMachineSoftReset))
+        machineMenu.addAction(self.makeAction("&Soft reset", "Ctrl+E", "Soft reset the machine", self.onMachineSoftReset))
         machineMenu.addAction(self.makeAction("&Kill alarm", "", "Disarm the alarm", self.onMachineKillAlarm))
         machineMenu.addAction(self.makeAction("&Configuration", "Ctrl+P", "Set machine configuration", self.onMachineConfiguration))
         self.updateActions()
