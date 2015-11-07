@@ -242,7 +242,7 @@ class CNCPendant(QtGui.QGroupBox):
         self.tableview.setModel(self.grbl.history)
         self.tableview.setColumnWidth(0, 480)
         self.tableview.setColumnWidth(1, 160)
-        self.tableview.setMinimumWidth(700)
+        self.tableview.setMinimumWidth(620)
         self.tableview.setMinimumHeight(300)
         self.tableview.verticalHeader().hide()
         self.tableview.resizeRowsToContents()
@@ -255,35 +255,38 @@ class CNCPendant(QtGui.QGroupBox):
         grid.addLayout(layout, 0, 0, 1, 3)
         
         layout = QtGui.QGridLayout()
+        layout.setAlignment(QtCore.Qt.AlignTop)
         layout.setColumnMinimumWidth(1, 14 * 6)
-        layout.setColumnMinimumWidth(2, 14 * 6)
-        alignment = {"|" : QtCore.Qt.AlignCenter, "<" : QtCore.Qt.AlignLeft, ">" : QtCore.Qt.AlignRight}
-        for col, name in enumerate(['|Coord', ">Work", ">Machine", "|Zero"]):
+        layout.setColumnMinimumWidth(3, 14 * 6)
+        alignment = {"|" : QtCore.Qt.AlignHCenter, "<" : QtCore.Qt.AlignLeft, ">" : QtCore.Qt.AlignRight}
+        for col, name in enumerate(['|', ">Work", "|Zero", ">Machine"]):
             label = QtGui.QLabel(name[1:])
-            label.setAlignment(alignment[name[0]] | QtCore.Qt.AlignBottom)
-            layout.addWidget(label, 0, col)
+            layout.addWidget(label, 0, col, alignment[name[0]] | QtCore.Qt.AlignTop)
         alignment = QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter
         for index, axis in enumerate(['X', 'Y', 'Z']):
             label = QtGui.QLabel(axis)
+            label.setScaledContents(False)
             label.setFont(Fonts.bigBoldFont)
-            label.setAlignment(QtCore.Qt.AlignCenter | QtCore.Qt.AlignVCenter)
-            layout.addWidget(label, index + 1, 0)
+            layout.addWidget(label, index + 1, 0, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             coordWidget = QtGui.QLabel("-")
-            coordWidget.setFont(Fonts.bigFont)
+            coordWidget.setFont(Fonts.bigBoldFont)
             coordWidget.setAlignment(alignment)
             layout.addWidget(coordWidget, index + 1, 1)
             self.workWidgets[axis] = coordWidget
+            zeroWidget = QtGui.QPushButton("0")
+            def q(axis):
+                return lambda: self.zeroAxis(axis)
+            zeroWidget.setMaximumWidth(32)
+            zeroWidget.clicked.connect(q(axis))
+            layout.addWidget(zeroWidget, index + 1, 2)
             coordWidget = QtGui.QLabel("-")
             coordWidget.setFont(Fonts.bigFont)
             coordWidget.setAlignment(alignment)
-            layout.addWidget(coordWidget, index + 1, 2)
+            layout.addWidget(coordWidget, index + 1, 3)
             self.machineWidgets[axis] = coordWidget
-            zeroWidget = QtGui.QPushButton("Zero")
-            def q(axis):
-                return lambda: self.zeroAxis(axis)
-            zeroWidget.clicked.connect(q(axis))
-            layout.addWidget(zeroWidget, index + 1, 3)
-        grid.addLayout(layout, 1, 0)
+        widget = QtGui.QGroupBox("Coordinates")
+        widget.setLayout(layout)
+        grid.addWidget(widget, 1, 0)
 
         self.jogger = CNCJogger(self.grbl)
         grid.addWidget(self.jogger, 1, 2, 1, 1)
@@ -358,7 +361,21 @@ class CNCJobControl(QtGui.QGroupBox):
         self.jobCommands.setMinimumHeight(300)
         self.jobCommands.resizeRowsToContents()
         layout.addWidget(self.jobCommands)
+        layout.addLayout(self.initButtons())
         self.setLayout(layout)
+    def initButtons(self):
+        buttonList = [
+            ('Load', self.onFileOpen),
+            ('Run', self.onJobRun),
+            ('Pause', self.onJobPause),
+            ('Cancel', self.onJobCancel),
+        ]
+        buttons = QtGui.QHBoxLayout()
+        for name, func in buttonList:
+            button = QtGui.QPushButton(name)
+            button.clicked.connect(func)
+            buttons.addWidget(button)
+        return buttons
     def onJobTableDataChanged(self, topleft, bottomright):
         self.jobCommands.resizeRowToContents(bottomright.row())
         self.jobCommands.scrollTo(bottomright.sibling(bottomright.row() + 1, 1))
@@ -366,46 +383,8 @@ class CNCJobControl(QtGui.QGroupBox):
     def setJob(self, job):
         job.dataChanged.connect(self.onJobTableDataChanged)    
         self.jobCommands.setModel(job)
+        self.jobCommands.scrollTo(job.index(0, 0))
         self.jobCommands.resizeRowsToContents()
-
-class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
-    def __init__(self):
-        QtGui.QMainWindow.__init__(self)
-        MenuHelper.__init__(self)
-        self.grbl = GrblInterface()
-        self.initUI()
-        self.grbl.connectToGrbl()
-        
-    def initUI(self):
-        menuBar = self.menuBar()
-        fileMenu = menuBar.addMenu("&File")
-        fileMenu.addAction(self.makeAction("&Open", "Ctrl+O", "Open a file", self.onFileOpen))
-        fileMenu.addAction(self.makeAction("E&xit", "Ctrl+Q", "Exit the application", self.close))
-        fileMenu = menuBar.addMenu("&Job")
-        fileMenu.addAction(self.makeAction("&Run", "F5", "Run the job", self.onJobRun))
-        fileMenu.addAction(self.makeAction("&Pause/resume", "F7", "Pause/resume the job", self.onJobPause))
-        fileMenu.addAction(self.makeAction("&Cancel", "F9", "Cancel the job", self.onJobCancel))
-        machineMenu = menuBar.addMenu("&Machine")
-        machineMenu.addAction(self.makeAction("&Go home", "F4", "Go to G28 predefined position", self.onMachineHome))
-        machineMenu.addAction(self.makeAction("&Homing cycle", "Ctrl+H", "Start homing cycle", self.onMachineHomingCycle))
-        machineMenu.addAction(self.makeAction("&Feed hold", "F8", "Pause the machine", self.onMachineFeedHold))
-        machineMenu.addAction(self.makeAction("&Restart", "F6", "Restart the machine", self.onMachineRestart))
-        machineMenu.addAction(self.makeAction("&Soft reset", "Ctrl+X", "Soft reset the machine", self.onMachineSoftReset))
-        machineMenu.addAction(self.makeAction("&Kill alarm", "", "Disarm the alarm", self.onMachineKillAlarm))
-        machineMenu.addAction(self.makeAction("&Configuration", "Ctrl+P", "Set machine configuration", self.onMachineConfiguration))
-        self.updateActions()
-        self.pendant = CNCPendant(self.grbl)
-        self.jobs = CNCJobControl(self.grbl)
-        layout = QtGui.QHBoxLayout()
-        layout.addWidget(self.pendant)
-        layout.addWidget(self.jobs)
-        widget = QtGui.QGroupBox()
-        widget.setLayout(layout)
-        self.setCentralWidget(widget)
-        self.setWindowTitle("KF's GRBL controller")
-        self.configDialog = MachineConfigDialog(self.grbl.config_model)
-        self.pendant.cmdWidget.setFocus()
-        
     def loadFile(self, fname):
         job = GcodeJobModel()
         for l in open(fname, "r").readlines():
@@ -413,12 +392,7 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
             if l != '':
                 job.addCommand(l)
         self.grbl.setJob(job)
-        self.jobs.setJob(job)
-    def onFileOpen(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc)")
-        if fname != '':
-            self.loadFile(fname)
-
+        self.setJob(job)
     def onJobRun(self):
         job = self.grbl.job
         if job is not None:
@@ -433,7 +407,52 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         job = self.grbl.job
         if job is not None:
             job.cancel()
+    def onFileOpen(self):
+        fname = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
+        if fname != '':
+            self.loadFile(fname)
 
+
+
+class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
+    def __init__(self):
+        QtGui.QMainWindow.__init__(self)
+        MenuHelper.__init__(self)
+        self.grbl = GrblInterface()
+        self.initUI()
+        self.grbl.connectToGrbl()
+        
+    def initUI(self):
+        self.pendant = CNCPendant(self.grbl)
+        self.jobs = CNCJobControl(self.grbl)
+
+        menuBar = self.menuBar()
+        fileMenu = menuBar.addMenu("&File")
+        fileMenu.addAction(self.makeAction("&Open", "Ctrl+O", "Open a file", self.jobs.onFileOpen))
+        fileMenu.addAction(self.makeAction("E&xit", "Ctrl+Q", "Exit the application", self.close))
+        fileMenu = menuBar.addMenu("&Job")
+        fileMenu.addAction(self.makeAction("&Run", "F5", "Run the job", self.jobs.onJobRun))
+        fileMenu.addAction(self.makeAction("&Pause/resume", "F7", "Pause/resume the job", self.jobs.onJobPause))
+        fileMenu.addAction(self.makeAction("&Cancel", "F9", "Cancel the job", self.jobs.onJobCancel))
+        machineMenu = menuBar.addMenu("&Machine")
+        machineMenu.addAction(self.makeAction("&Go home", "F4", "Go to G28 predefined position", self.onMachineHome))
+        machineMenu.addAction(self.makeAction("&Homing cycle", "Ctrl+H", "Start homing cycle", self.onMachineHomingCycle))
+        machineMenu.addAction(self.makeAction("&Feed hold", "F8", "Pause the machine", self.onMachineFeedHold))
+        machineMenu.addAction(self.makeAction("&Restart", "F6", "Restart the machine", self.onMachineRestart))
+        machineMenu.addAction(self.makeAction("&Soft reset", "Ctrl+X", "Soft reset the machine", self.onMachineSoftReset))
+        machineMenu.addAction(self.makeAction("&Kill alarm", "", "Disarm the alarm", self.onMachineKillAlarm))
+        machineMenu.addAction(self.makeAction("&Configuration", "Ctrl+P", "Set machine configuration", self.onMachineConfiguration))
+        self.updateActions()
+        layout = QtGui.QHBoxLayout()
+        layout.addWidget(self.pendant)
+        layout.addWidget(self.jobs)
+        widget = QtGui.QGroupBox()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+        self.setWindowTitle("KF's GRBL controller")
+        self.configDialog = MachineConfigDialog(self.grbl.config_model)
+        self.pendant.cmdWidget.setFocus()
+        
     def onMachineHome(self):
         self.grbl.sendLine('G28')
     def onMachineFeedHold(self):

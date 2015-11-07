@@ -15,6 +15,6 @@ class Settings:
 class Fonts:
     mediumFont = QtGui.QFont("Sans", 12)
     mediumBoldFont = QtGui.QFont("Sans", 12, QtGui.QFont.Bold)
-    bigFont = QtGui.QFont("Sans", 14, QtGui.QFont.Bold)
-    bigBoldFont = QtGui.QFont("Sans", 14)
+    bigFont = QtGui.QFont("Sans", 14)
+    bigBoldFont = QtGui.QFont("Sans", 14, QtGui.QFont.Bold)
 
