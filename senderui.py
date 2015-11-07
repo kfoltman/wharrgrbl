@@ -5,66 +5,11 @@ from sender import sender
 from helpers.gui import MenuHelper
 from sender.config import Settings, Fonts
 from sender.config_window import *
+from sender.cmdlist import *
 
 class CNCApplication(QtGui.QApplication):
     pass
-
-class GcodeExecCommand:
-    def __init__(self, command, status):
-        self.command = command
-        self.status = status
-
-class GcodeExecHistoryModel(QtCore.QAbstractTableModel):
-    def __init__(self):
-        QtCore.QAbstractTableModel.__init__(self)
-        self.commands = []
-        self.history_pos = 0
-    def pull(self):
-        if self.history_pos >= len(self.commands):
-            return None
-        cmd = self.commands[self.history_pos]
-        self.history_pos += 1
-        return cmd
-    def unpull(self):
-        self.history_pos -= 1
-    def data(self, index, role):
-        if role == QtCore.Qt.DisplayRole:
-            if index.row() < len(self.commands):
-                if index.column() == 0:
-                    return self.commands[index.row()].command
-                else:
-                    return self.commands[index.row()].status
-        return None
-    def headerData(self, section, orientation, role):
-        if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
-            if section == 0:
-                return "Command"
-            else:
-                return "Status"
-        #if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
-        #    return "%d" % (1 + section)
-    def rowCount(self, parent):
-        if parent.isValid():
-            return 0
-        return len(self.commands)
-    def columnCount(self, parent):
-        return 2
-    def addCommand(self, cmd):
-        context = GcodeExecCommand(cmd, "Queued")
-        l = len(self.commands)
-        context.pos = l
-        self.beginInsertRows(QtCore.QModelIndex(), l, l)
-        self.commands.append(context)
-        self.endInsertRows()
-        return context
-    def changeStatus(self, context, new_status):
-        context.status = new_status
-        self.dataChanged.emit(self.index(context.pos, 1), self.index(context.pos, 1))
-    def flags(self, index):
-        if index.column() == 0:
-            return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-        return QtCore.Qt.NoItemFlags
-
+        
 class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
     status = QtCore.pyqtSignal([])
     line_received = QtCore.pyqtSignal([str])
@@ -72,6 +17,7 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         QtCore.QObject.__init__(self)
         self.config_model = config_model
         self.history_model = history_model
+        self.job_model = None
         self.current_status = ('Initialized', {})
         sender.GrblStateMachine.__init__(self, Settings.device, Settings.speed)
     def handle_line(self, line):
@@ -86,22 +32,28 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
     def send_line(self, line):
         self.history_model.addCommand(line)
     def confirm(self, line, context):
-        self.history_model.changeStatus(context, 'Confirmed')
+        context.set_status('Confirmed')
     def error(self, line, context, error):
-        self.history_model.changeStatus(context, error)
+        context.set_status(error)
     def handle_variable_value(self, var, value, comment):
         self.config_model.handleVariableValue(var, value, comment)
     def try_pull(self):
         while True:
-            context = self.history_model.pull()
-            if context is None:
+            cmd = None
+            if self.job_model is not None and self.job_model.running:
+                cmd = self.job_model.getNextCommand()
+            if cmd is None:
+                cmd = self.history_model.getNextCommand()
+            if cmd is None:
                 return
-            error = sender.GrblStateMachine.send_line(self, context.command, context)
+            error = sender.GrblStateMachine.send_line(self, cmd.command, cmd)
             if error is not None:
-                self.history_model.unpull()
+                cmd.rollback()
                 return
             else:
-                context.status = "Sent"
+                cmd.set_status("Sent")
+    def set_job(self, job):
+        self.job_model = job
 
 class GrblInterface(QtCore.QObject):
     status = QtCore.pyqtSignal([])
@@ -109,13 +61,15 @@ class GrblInterface(QtCore.QObject):
     def __init__(self):
         QtCore.QObject.__init__(self)
         self.grbl = None
-        self.history = GcodeExecHistoryModel()
+        self.job = None
+        self.history = GcodeJobModel()
         self.config_model = GrblConfigModel(self)
         self.startTimer(Settings.timer_interval)
     def connectToGrbl(self):
         self.grbl = GrblStateMachineWithSignals(self.history, self.config_model)
         self.grbl.status.connect(self.onStatus)
         self.grbl.line_received.connect(self.onLineReceived)
+        self.grbl.set_job(self.job)
     def disconnectFromGrbl(self):
         if self.grbl is not None:
             self.grbl.close()
@@ -137,12 +91,15 @@ class GrblInterface(QtCore.QObject):
             self.grbl.try_pull()
         else:
             self.onStatus('Disconnected', {})
-    def send_line(self, line):
+    def sendLine(self, line):
         if self.grbl is not None:
             self.grbl.send_line(line)
         else:
             raise ValueError("connection not established")
-            
+    def setJob(self, job):
+        self.job = job
+        if self.grbl is not None:
+            self.grbl.set_job(job)
     def canAcceptCommands(self, mode):
         return mode not in ['Home', 'Alarm']
 
@@ -187,9 +144,8 @@ class CNCJogger(QtGui.QGroupBox):
             m = self.distxy * dist
         if QtGui.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier:
             m *= 10
-        self.grbl.send_line("G91 G0 X%f Y%f Z%f" % (m * dx, m * dy, m * dz))
+        self.grbl.sendLine("G91 G0 X%f Y%f Z%f" % (m * dx, m * dy, m * dz))
     def handleSteps(self, var, dist):
-        print var, dist
         setattr(self, var, dist)
         self.steps_changed.emit()
     def initUI(self):        
@@ -209,7 +165,7 @@ class CNCJogger(QtGui.QGroupBox):
             steps.addWidget(rb)
         steps = QtGui.QVBoxLayout()
         layout.addLayout(steps, 0, 3, 4, 1)
-        for d in [0.1, 1, 10, 50]:
+        for d in Settings.xysteps:
             addButton(steps, 'distxy', d)
 
         frm = QtGui.QFrame()
@@ -218,7 +174,7 @@ class CNCJogger(QtGui.QGroupBox):
 
         steps = QtGui.QVBoxLayout()
         layout.addLayout(steps, 0, 6, 4, 1)
-        for d in [0.1, 1, 10, 50]:
+        for d in Settings.zsteps:
             addButton(steps, 'distz', d)
         self.steps_changed.emit()
 
@@ -331,19 +287,27 @@ class CNCPendant(QtGui.QGroupBox):
 
         self.jogger = CNCJogger(self.grbl)
         grid.addWidget(self.jogger, 1, 2, 1, 1)
+        self.macros = QtGui.QHBoxLayout()
+        for name, command in Settings.macros:
+            button = QtGui.QPushButton(name)
+            def q(command):
+                return lambda: self.grbl.sendLine(command)
+            button.clicked.connect(q(command))
+            self.macros.addWidget(button)
+        grid.addLayout(self.macros, 2, 0, 1, 3)
         
         self.setLayout(grid)
 
     def zeroAxis(self, axis):
         print "Zero axis %s" % axis
-        self.grbl.send_line('G90 G10 L20 P0 %s0' % axis)
+        self.grbl.sendLine('G90 G10 L20 P0 %s0' % axis)
         
     def onTableDataChanged(self, topleft, bottomright):
         if bottomright.row() > self.tableMax:
             self.tableMax = bottomright.row()
             self.tableview.resizeRowToContents(bottomright.row())
             self.tableview.scrollTo(bottomright.sibling(bottomright.row() + 1, 1))
-        self.repaint()
+        self.tableview.repaint()
     
     def onTableRowsInserted(self, index, ifrom, ito):
         self.tableview.resizeRowToContents(ifrom)
@@ -351,7 +315,7 @@ class CNCPendant(QtGui.QGroupBox):
     def sendCommand(self):
         cmd = str(self.cmdWidget.text())
         self.cmdHistory.append(cmd)
-        self.grbl.send_line(cmd)
+        self.grbl.sendLine(cmd)
         self.cmdWidget.setText('')
     def updateStatusWidgets(self, mode, args):
         fmt = "%0.3f"
@@ -378,6 +342,32 @@ class CNCPendant(QtGui.QGroupBox):
     def onLineReceived(self, line):
         print "Received:", line
 
+class CNCJobControl(QtGui.QGroupBox):
+    def __init__(self, grbl):
+        QtGui.QWidget.__init__(self)
+        self.setTitle("Job control")
+        self.grbl = grbl
+        self.initUI()
+    def initUI(self):
+        layout = QtGui.QVBoxLayout()
+        self.jobCommands = QtGui.QTableView()
+        self.jobCommands.setModel(GcodeJobModel())
+        self.jobCommands.setColumnWidth(0, 380)
+        self.jobCommands.setColumnWidth(1, 120)
+        self.jobCommands.setMinimumWidth(520)
+        self.jobCommands.setMinimumHeight(300)
+        self.jobCommands.resizeRowsToContents()
+        layout.addWidget(self.jobCommands)
+        self.setLayout(layout)
+    def onJobTableDataChanged(self, topleft, bottomright):
+        self.jobCommands.resizeRowToContents(bottomright.row())
+        self.jobCommands.scrollTo(bottomright.sibling(bottomright.row() + 1, 1))
+        self.jobCommands.repaint()
+    def setJob(self, job):
+        job.dataChanged.connect(self.onJobTableDataChanged)    
+        self.jobCommands.setModel(job)
+        self.jobCommands.resizeRowsToContents()
+
 class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
     def __init__(self):
         QtGui.QMainWindow.__init__(self)
@@ -393,10 +383,11 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         fileMenu.addAction(self.makeAction("E&xit", "Ctrl+Q", "Exit the application", self.close))
         fileMenu = menuBar.addMenu("&Job")
         fileMenu.addAction(self.makeAction("&Run", "F5", "Run the job", self.onJobRun))
+        fileMenu.addAction(self.makeAction("&Pause/resume", "F7", "Pause/resume the job", self.onJobPause))
         fileMenu.addAction(self.makeAction("&Cancel", "F9", "Cancel the job", self.onJobCancel))
         machineMenu = menuBar.addMenu("&Machine")
-        machineMenu.addAction(self.makeAction("&Go home", "F4", "Go to zero point", self.onMachineHome))
-        machineMenu.addAction(self.makeAction("&Homing cycle", "Ctrl+H", "Disarm the alarm", self.onMachineKillAlarm))
+        machineMenu.addAction(self.makeAction("&Go home", "F4", "Go to G28 predefined position", self.onMachineHome))
+        machineMenu.addAction(self.makeAction("&Homing cycle", "Ctrl+H", "Start homing cycle", self.onMachineHomingCycle))
         machineMenu.addAction(self.makeAction("&Feed hold", "F8", "Pause the machine", self.onMachineFeedHold))
         machineMenu.addAction(self.makeAction("&Restart", "F6", "Restart the machine", self.onMachineRestart))
         machineMenu.addAction(self.makeAction("&Soft reset", "Ctrl+X", "Soft reset the machine", self.onMachineSoftReset))
@@ -404,28 +395,47 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         machineMenu.addAction(self.makeAction("&Configuration", "Ctrl+P", "Set machine configuration", self.onMachineConfiguration))
         self.updateActions()
         self.pendant = CNCPendant(self.grbl)
-        self.setCentralWidget(self.pendant)
+        self.jobs = CNCJobControl(self.grbl)
+        layout = QtGui.QHBoxLayout()
+        layout.addWidget(self.pendant)
+        layout.addWidget(self.jobs)
+        widget = QtGui.QGroupBox()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
         self.setWindowTitle("KF's GRBL controller")
         self.configDialog = MachineConfigDialog(self.grbl.config_model)
         self.pendant.cmdWidget.setFocus()
         
     def loadFile(self, fname):
+        job = GcodeJobModel()
         for l in open(fname, "r").readlines():
             l = l.strip()
             if l != '':
-                self.grbl.send_line(l.strip())
+                job.addCommand(l)
+        self.grbl.setJob(job)
+        self.jobs.setJob(job)
     def onFileOpen(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc)")
         if fname != '':
             self.loadFile(fname)
 
     def onJobRun(self):
-        pass
+        job = self.grbl.job
+        if job is not None:
+            if not job.running:
+                job.rewind()
+                job.running = True
+    def onJobPause(self):
+        job = self.grbl.job
+        if job is not None:
+            job.running = not job.running
     def onJobCancel(self):
-        pass
+        job = self.grbl.job
+        if job is not None:
+            job.cancel()
 
     def onMachineHome(self):
-        self.grbl.send_line('G28')
+        self.grbl.sendLine('G28')
     def onMachineFeedHold(self):
         self.grbl.grbl.pause()
     def onMachineRestart(self):
@@ -433,11 +443,11 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
     def onMachineSoftReset(self):
         self.grbl.grbl.soft_reset()
     def onMachineKillAlarm(self):
-        self.grbl.send_line('$X')
+        self.grbl.sendLine('$X')
     def onMachineHomingCycle(self):
-        self.grbl.send_line('$H')
+        self.grbl.sendLine('$H')
     def onMachineConfiguration(self):
-        self.grbl.send_line('$$')
+        self.grbl.sendLine('$$')
         self.configDialog.show()
 
 def main():    
