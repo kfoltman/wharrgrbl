@@ -135,16 +135,13 @@ class CNCJogger(QtGui.QGroupBox):
         button.setFocusPolicy(QtCore.Qt.NoFocus)
         layout.addWidget(button, locx, locy)
     def handleButton(self, axis, dist):
-        dx = 1 if axis == 'X' else 0
-        dy = 1 if axis == 'Y' else 0
-        dz = 1 if axis == 'Z' else 0
         if axis == 'Z':
             m = self.distz * dist
         else:
             m = self.distxy * dist
         if QtGui.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier:
             m *= 10
-        self.grbl.sendLine("G91 G0 X%f Y%f Z%f" % (m * dx, m * dy, m * dz))
+        self.grbl.sendLine("G91 G0 %s%s" % (axis, m))
     def handleSteps(self, var, dist):
         setattr(self, var, dist)
         self.steps_changed.emit()
