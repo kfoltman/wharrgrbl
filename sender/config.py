@@ -12,6 +12,7 @@ class Settings:
         ('Probe', 'G91 G38.2 Z-10 F100'),
         ('Set Z=20', 'G91 G10 L20 P1 Z20'),
         ('Set XY=0', 'G91 G10 L20 P1 X0 Y0'),
+        ('Retract', 'G90 G0 Z30'),
     ]
 
 class Fonts:

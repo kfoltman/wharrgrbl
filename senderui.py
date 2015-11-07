@@ -207,16 +207,19 @@ class HistoryLineEdit(QtGui.QLineEdit):
         #    self.history_cursor += ito - ifrom + 1
         self.history_cursor = ito + 1
     def keyPressEvent(self, e):
-        if e.key() == QtCore.Qt.Key_Up:
-            if self.history_cursor > 0:
-                self.history_cursor -= 1
-                self.setText(self.history.data(self.history.index(self.history_cursor, 0), QtCore.Qt.DisplayRole))
-                self.selectAll()
-        elif e.key() == QtCore.Qt.Key_Down:
-            if self.history_cursor < self.history.rowCount(QtCore.QModelIndex()) - 1:
-                self.history_cursor += 1
-                self.setText(self.history.data(self.history.index(self.history_cursor, 0), QtCore.Qt.DisplayRole))
-                self.selectAll()
+        if (e.modifiers() & QtCore.Qt.AltModifier) == 0:
+            if e.key() == QtCore.Qt.Key_Up:
+                if self.history_cursor > 0:
+                    self.history_cursor -= 1
+                    self.setText(self.history.data(self.history.index(self.history_cursor, 0), QtCore.Qt.DisplayRole))
+                    self.selectAll()
+            elif e.key() == QtCore.Qt.Key_Down:
+                if self.history_cursor < self.history.rowCount(QtCore.QModelIndex()) - 1:
+                    self.history_cursor += 1
+                    self.setText(self.history.data(self.history.index(self.history_cursor, 0), QtCore.Qt.DisplayRole))
+                    self.selectAll()
+            else:
+                QtGui.QLineEdit.keyPressEvent(self, e)
         else:
             QtGui.QLineEdit.keyPressEvent(self, e)
 
