@@ -46,8 +46,8 @@ class GrblConfigModel(QtCore.QAbstractTableModel):
     def setData(self, index, value, role):
         if role == QtCore.Qt.EditRole:
             cmd = "%s=%s" % (self.configRows[index.row()], value.toString())
-            self.grbl.send_line(str(cmd))
-            self.grbl.send_line("$$")
+            self.grbl.sendLine(str(cmd))
+            self.grbl.sendLine("$$")
             return True
         return False
     

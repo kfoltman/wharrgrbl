@@ -111,6 +111,8 @@ class CNCJogger(QtGui.QGroupBox):
         self.grbl = grbl
         self.distxy = 10
         self.distz = 1
+        self.speedxy = None
+        self.speedz = None
         self.initUI()
     def checkKeyPressEvent(self, e):
         if e.key() == QtCore.Qt.Key_Left:
@@ -137,11 +139,16 @@ class CNCJogger(QtGui.QGroupBox):
     def handleButton(self, axis, dist):
         if axis == 'Z':
             m = self.distz * dist
+            s = self.speedz
         else:
             m = self.distxy * dist
+            s = self.speedxy
         if QtGui.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier:
             m *= 10
-        self.grbl.sendLine("G91 G0 %s%s" % (axis, m))
+        if s is None:
+            self.grbl.sendLine("G91 G0 %s%s" % (axis, m))
+        else:
+            self.grbl.sendLine("G91 G1 F%s %s%s" % (s, axis, m))
     def handleSteps(self, var, dist):
         setattr(self, var, dist)
         self.steps_changed.emit()
@@ -152,27 +159,36 @@ class CNCJogger(QtGui.QGroupBox):
         self.makeButton("X-", layout, 1, 0)
         self.makeButton("X+", layout, 1, 2)
         self.makeButton("Y-", layout, 2, 1)
-        self.makeButton("Z+", layout, 0, 5)
-        self.makeButton("Z-", layout, 2, 5)
-        def addButton(steps, var, d):
-            rb = QtGui.QRadioButton("%smm" % d)
+        self.makeButton("Z+", layout, 0, 6)
+        self.makeButton("Z-", layout, 2, 6)
+        def addButton(steps, var, d, v):
+            rb = QtGui.QRadioButton(d)
             rb.setAutoExclusive(False)
-            rb.clicked.connect(lambda: self.handleSteps(var, d))
-            self.steps_changed.connect(lambda: rb.setChecked(getattr(self, var) == d))
+            rb.clicked.connect(lambda: self.handleSteps(var, v))
+            self.steps_changed.connect(lambda: rb.setChecked(getattr(self, var) == v))
             steps.addWidget(rb)
         steps = QtGui.QVBoxLayout()
-        layout.addLayout(steps, 0, 3, 4, 1)
         for d in Settings.xysteps:
-            addButton(steps, 'distxy', d)
+            addButton(steps, 'distxy', "%smm" % d, d)
+        layout.addLayout(steps, 0, 3, 4, 1)
+        speeds = QtGui.QVBoxLayout()
+        for d in Settings.xyspeeds:
+            addButton(speeds, 'speedxy', "F%s" % d if d is not None else "Rapid", d)
+        layout.addLayout(speeds, 0, 4, 4, 1)
 
         frm = QtGui.QFrame()
         frm.setFrameStyle(QtGui.QFrame.VLine)
-        layout.addWidget(frm, 0, 4, 4, 1)
+        layout.addWidget(frm, 0, 5, 4, 1)
 
         steps = QtGui.QVBoxLayout()
-        layout.addLayout(steps, 0, 6, 4, 1)
         for d in Settings.zsteps:
-            addButton(steps, 'distz', d)
+            addButton(steps, 'distz', "%smm" % d, d)
+        layout.addLayout(steps, 0, 7, 4, 1)
+        speeds = QtGui.QVBoxLayout()
+        for d in Settings.zspeeds:
+            addButton(speeds, 'speedz', "F%s" % d if d is not None else "Rapid", d)
+        layout.addLayout(speeds, 0, 8, 4, 1)
+
         self.steps_changed.emit()
 
 class HistoryLineEdit(QtGui.QLineEdit):
