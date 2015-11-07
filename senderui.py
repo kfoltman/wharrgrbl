@@ -133,6 +133,7 @@ class CNCJogger(QtGui.QGroupBox):
     def makeButton(self, name, layout, locx, locy):
         button = QtGui.QPushButton(name)
         button.setFont(Fonts.bigBoldFont)
+        button.setMaximumWidth(QtGui.QFontMetrics(button.font()).width(name.replace("-", "+")) + 10)
         button.clicked.connect(lambda: self.handleButton(name[0], 1 if name[1] == '+' else -1))
         button.setFocusPolicy(QtCore.Qt.NoFocus)
         layout.addWidget(button, locx, locy)
