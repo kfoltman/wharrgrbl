@@ -347,9 +347,11 @@ class CNCPendant(QtGui.QGroupBox):
         self.tableview.resizeRowToContents(ifrom)
     
     def sendCommand(self):
-        cmd = str(self.cmdWidget.text())
-        self.cmdHistory.append(cmd)
-        self.grbl.sendLine(cmd)
+        cmds = str(self.cmdWidget.text())
+        for cmd in cmds.split(":"):
+            cmd = cmd.strip()
+            self.cmdHistory.append(cmd)
+            self.grbl.sendLine(cmd)
         self.cmdWidget.setText('')
     def updateStatusWidgets(self, mode, args):
         fmt = "%0.3f"
