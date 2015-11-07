@@ -80,4 +80,5 @@ class GcodeJobModel(QtCore.QAbstractTableModel):
         cell1 = self.index(0, 1)
         cell2 = self.index(len(self.commands), 1)
         self.dataChanged.emit(cell1, cell2)
-        
+    def isPaused(self):
+        return not self.running and self.history_pos > 0 and self.history_pos < len(self.commands)
