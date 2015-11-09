@@ -495,7 +495,6 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         self.grbl = GrblInterface()
         self.initUI()
         self.grbl.connectToGrbl()
-        
     def initUI(self):
         self.pendant = CNCPendant(self.grbl)
         self.jobs = CNCJobControl(self.grbl)
@@ -503,6 +502,8 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         menuBar = self.menuBar()
         fileMenu = menuBar.addMenu("&File")
         fileMenu.addAction(self.makeAction("&Open", "Ctrl+O", "Open a file", self.jobs.onFileOpen))
+        fileMenu.addSeparator()
+        fileMenu.addAction(self.makeAction("&Preferences", "Ctrl+T", "Set application configuration", self.onFilePreferences))
         fileMenu.addAction(self.makeAction("E&xit", "Ctrl+Q", "Exit the application", self.close))
         fileMenu = menuBar.addMenu("&Job")
         fileMenu.addAction(self.makeAction("&Run", "F5", "Run the job", self.jobs.onJobRun))
@@ -515,7 +516,8 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         machineMenu.addAction(self.makeAction("&Resume", "F6", "Resume the machine", self.pendant.onMachineResume))
         machineMenu.addAction(self.makeAction("&Soft reset", "Ctrl+E", "Soft reset the machine", self.pendant.onMachineSoftReset))
         machineMenu.addAction(self.makeAction("&Kill alarm", "", "Disarm the alarm", self.pendant.onMachineKillAlarm))
-        machineMenu.addAction(self.makeAction("&Configuration", "Ctrl+P", "Set machine configuration", self.onMachineConfiguration))
+        machineMenu.addSeparator()
+        machineMenu.addAction(self.makeAction("&Machine configuration", "Ctrl+M", "Set machine configuration", self.onMachineConfiguration))
         self.updateActions()
         layout = QtGui.QHBoxLayout()
         layout.addWidget(self.pendant)
@@ -526,10 +528,13 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         self.setWindowTitle("KF's GRBL controller")
         self.configDialog = MachineConfigDialog(self.grbl.config_model)
         self.pendant.cmdWidget.setFocus()
-        
     def onMachineConfiguration(self):
         self.grbl.sendLine('$$')
         self.configDialog.show()
+    def onFilePreferences(self):
+        prefs = AppConfigDialog()
+        if prefs.exec_():
+            prefs.save()
 
 def main():    
     app = CNCApplication(sys.argv)

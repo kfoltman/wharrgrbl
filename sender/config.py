@@ -1,7 +1,7 @@
 from PyQt4 import QtCore, QtGui
 
 class Settings:
-    device = '/dev/ttyACM0'
+    device = None
     speed = 115200
     timer_interval = 100
     xysteps = [50, 10, 1, 0.1]

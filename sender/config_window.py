@@ -1,5 +1,7 @@
 import math
 import sys
+from config import Settings
+from sender import SerialDeviceFinder
 from PyQt4 import QtCore, QtGui
 from helpers.gui import MenuHelper
 
@@ -70,4 +72,46 @@ class MachineConfigDialog(QtGui.QDialog):
     def showEvent(self, e):
         self.tableView.setFocus()
         #self.add(self.tableView)
+
+class AppConfigDialog(QtGui.QDialog):
+    def __init__(self):
+        QtGui.QDialog.__init__(self)
+        self.finder = SerialDeviceFinder()
+        self.comPorts = QtGui.QStandardItemModel()
+        devices = [(None, "Autodetect the device")] + list(self.finder.devices)
+        self.defaultDeviceIndex = 0
+        for device, name in sorted(devices, cmp = lambda i1, i2: cmp(i1[0], i2[0])):
+            if device == Settings.device:
+                self.defaultDeviceIndex = self.comPorts.rowCount()
+            self.comPorts.appendRow([QtGui.QStandardItem(device or "Autodetect"), QtGui.QStandardItem(name)])
+
+        self.initUI()
+        self.setWindowTitle("Wharrgrbl configuration")
+    def initUI(self):
+        layout = QtGui.QFormLayout()
+        self.comboPorts = QtGui.QComboBox()
+        self.comboPorts.setModel(self.comPorts)
+        self.labelPortName = QtGui.QLabel()
+        buttons = QtGui.QHBoxLayout()
+        button = QtGui.QPushButton("Cancel")
+        button.clicked.connect(self.reject)
+        buttons.addWidget(button)
+        button = QtGui.QPushButton("&OK")
+        button.setDefault(True)
+        button.clicked.connect(self.accept)
+        buttons.addWidget(button)
         
+        layout.addRow("Serial port", self.comboPorts)
+        layout.addRow("Description", self.labelPortName)
+        layout.addRow(buttons)
+        self.setLayout(layout)
+        self.comboPorts.activated.connect(self.updatePortName)
+        self.updatePortName(self.defaultDeviceIndex)
+    def updatePortName(self, i):
+        self.labelPortName.setText("%s" % self.comPorts.data(self.comPorts.index(i, 1)).toString())
+    def showEvent(self, e):
+        #self.tableView.setFocus()
+        #self.add(self.tableView)
+        pass
+    def save(self):
+        print "Not implemented yet"
