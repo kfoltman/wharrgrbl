@@ -50,20 +50,30 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         line = line.strip()
         if '(' in line or ';' in line:
             is_comment = False
+            is_siemens_comment = False
             line2 = ''
+            comment = None
             for item in re.split('\((.*?)\)', line):
-                if not is_comment:
-                    # Siemens style comment
-                    sc = item.find(';')
-                    if sc > 0:
-                        self.set_comment(item[sc + 1:])
-                        line2 += item[0:sc]
-                        break
-                    line2 += item
+                if is_siemens_comment:
+                    if is_comment:
+                        comment += "(%s)" % item
+                    else:
+                        comment += item
                 else:
-                    self.set_comment(item)
+                    if not is_comment:
+                        sc = item.find(';')
+                        if sc > 0:
+                            comment = item[sc + 1:]
+                            is_siemens_comment = True
+                            line2 += item[0:sc]
+                        else:
+                            line2 += item
+                    else:
+                        comment = item
                 is_comment = not is_comment
             line = line2
+            if comment is not None:
+                self.set_comment(comment)
         return line
     def try_pull(self):
         while True:
