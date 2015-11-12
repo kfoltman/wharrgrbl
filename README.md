@@ -36,15 +36,18 @@ auto-Z-probing and selective re-milling of underetched areas or nets
 ## Gcode sender UI
 
 This is a highly 'work-in-progress' machine control interface, similar
-to UGCS or Grbl-Panel, but using a more open-source friendly language. The
-goal is to integrate it with the PCB generator and perhaps other CAM
-utilities in future. It's not tested with an actual CNC machine, only with
-Grbl running standalone, so it's not recommended for use yet.
+to UGCS or Grbl-Panel, but using a more open-source friendly language (Python).
+The goal is to integrate it with the PCB generator and perhaps other CAM
+utilities in future.
 
-### TODO
-* UGCS-style conversation output
-* better designed and full featured job support (the current one is a complete hack)
-* adjustable step size and feed for jogging
-* separate step size for X/Y and Z
-* adjustable feed for jogging
-* ad-hoc operations/canned cycles (peck and spiral drilling, milling slots, pocketing holes for hex nuts etc.)
+### Features
+* Open source and written in Python 2.7
+* Supports Linux and Windows (serial port autodetection not fully working)
+* Graphical user interface using PyQt4
+* Interactive mode with command history and feed hold/resume support
+* Job mode (running gcode content from a file) including pause/resume/cancel
+* Jogging with separate, configurable step sizes and feed rates for X/Y axes and Z axis
+* Support for character-counting protocol for efficient transmission of complex gcode
+* User buttons for frequently used commands (probing etc.)
+* Grbl setting editor (GUI for $$/$number)
+* Configuration via Python source file, no UI configuration support yet
