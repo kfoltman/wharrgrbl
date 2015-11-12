@@ -106,6 +106,9 @@ class GrblStateMachine:
             self.confirm(*self.outqueue[0])
             self.outqueue.pop(0)
             return True
+        if inp[0:7] == 'ALARM: ':
+            self.alarm(self.outqueue[0][0], self.outqueue[0][1], inp[7:])
+            return True
         if inp[0] == '[' and inp[-1] == ']':
             if ':' in inp:
                 par, values = inp[1:-1].split(":", 1)
@@ -153,6 +156,8 @@ class GrblStateMachine:
                 continue
     def confirm(self, line, context):
         pass
+    def alarm(self, line, context, message):
+        print "Alarm pop: %s - %s" % (line, message)
     def process_status(self, response):
         if response[0] == '<' and response[-1] == '>':
             status, params = response[1:-1].split(",", 1)

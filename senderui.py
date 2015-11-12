@@ -19,14 +19,17 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         self.config_model = config_model
         self.history_model = history_model
         self.job_model = None
-        self.current_status = ('Initialized', {}, '')
+        self.current_status = ('Initialized', {}, '', None)
         sender.GrblStateMachine.__init__(self, Settings.device, Settings.speed)
     def handle_line(self, line):
         if not (line.startswith('<') and line.endswith('>')):
             self.line_received.emit(line)
         return sender.GrblStateMachine.handle_line(self, line)
     def process_cooked_status(self, mode, args):
-        self.current_status = (mode, args, self.current_status[2])
+        extra = self.current_status[3]
+        if mode != self.current_status[0]:
+            extra = None
+        self.current_status = (mode, args, self.current_status[2], extra)
         self.status.emit()
     def get_status(self):
         return self.current_status
@@ -34,13 +37,15 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         self.history_model.addCommand(line)
     def confirm(self, line, context):
         context.set_status('Confirmed')
+    def alarm(self, line, context, message):
+        self.current_status = ('Alarm', self.current_status[1], self.current_status[2], message)
     def error(self, line, context, error):
         context.set_status(error)
     def handle_variable_value(self, var, value, comment):
         self.config_model.handleVariableValue(var, value, comment)
     def set_comment(self, comment):
         cs = self.current_status
-        self.current_status = (cs[0], cs[1], comment)
+        self.current_status = (cs[0], cs[1], comment, cs[3])
     def prepare(self, line):
         line = line.strip()
         if '(' in line or ';' in line:
@@ -105,7 +110,7 @@ class GrblInterface(QtCore.QObject):
         if self.grbl:
             return self.grbl.get_status()
         else:
-            return ('Not connected', {}, '')
+            return ('Not connected', {}, '', None)
     def onStatus(self):
         self.status.emit()
     def onLineReceived(self, line):
@@ -290,6 +295,7 @@ class CNCPendant(QtGui.QGroupBox):
         self.holdButton = addButton("Hold", self.onMachineFeedHold)
         self.resumeButton = addButton("Resume", self.onMachineResume)
         self.resetButton = addButton("Soft Reset", self.onMachineSoftReset)
+        self.killAlarmButton = addButton("Kill Alarm", self.onMachineKillAlarm)
         self.commentWidget = QtGui.QLabel("")
 
         self.workWidgets = {}
@@ -385,8 +391,11 @@ class CNCPendant(QtGui.QGroupBox):
             self.cmdHistory.append(cmd)
             self.grbl.sendLine(cmd)
         self.cmdWidget.setText('')
-    def updateStatusWidgets(self, mode, args, last_comment):
+    def updateStatusWidgets(self, mode, args, last_comment, extra):
         fmt = "%0.3f"
+        self.killAlarmButton.setEnabled(mode == "Alarm")
+        if extra is not None:
+            mode = "%s - %s" % (mode, extra)
         self.modeWidget.setText(mode)
         self.commentWidget.setText(last_comment)
         self.cmdButton.setEnabled(self.grbl.canAcceptCommands(mode) and not self.grbl.isRunningAJob())
