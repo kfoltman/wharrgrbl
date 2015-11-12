@@ -38,17 +38,25 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         context.set_status(error)
     def handle_variable_value(self, var, value, comment):
         self.config_model.handleVariableValue(var, value, comment)
+    def set_comment(self, comment):
+        cs = self.current_status
+        self.current_status = (cs[0], cs[1], comment)
     def prepare(self, line):
         line = line.strip()
-        if '(' in line:
+        if '(' in line or ';' in line:
             is_comment = False
             line2 = ''
             for item in re.split('\((.*?)\)', line):
                 if not is_comment:
+                    # Siemens style comment
+                    sc = item.find(';')
+                    if sc > 0:
+                        self.set_comment(item[sc + 1:])
+                        line2 += item[0:sc]
+                        break
                     line2 += item
                 else:
-                    cs = self.current_status
-                    self.current_status = (cs[0], cs[1], item)
+                    self.set_comment(item)
                 is_comment = not is_comment
             line = line2
         return line
