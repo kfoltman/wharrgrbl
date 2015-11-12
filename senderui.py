@@ -1,4 +1,5 @@
 import math
+import re
 import sys
 from PyQt4 import QtCore, QtGui
 from sender import sender
@@ -18,14 +19,14 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         self.config_model = config_model
         self.history_model = history_model
         self.job_model = None
-        self.current_status = ('Initialized', {})
+        self.current_status = ('Initialized', {}, '')
         sender.GrblStateMachine.__init__(self, Settings.device, Settings.speed)
     def handle_line(self, line):
         if not (line.startswith('<') and line.endswith('>')):
             self.line_received.emit(line)
         return sender.GrblStateMachine.handle_line(self, line)
     def process_cooked_status(self, mode, args):
-        self.current_status = (mode, args)
+        self.current_status = (mode, args, self.current_status[2])
         self.status.emit()
     def get_status(self):
         return self.current_status
@@ -37,6 +38,20 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         context.set_status(error)
     def handle_variable_value(self, var, value, comment):
         self.config_model.handleVariableValue(var, value, comment)
+    def prepare(self, line):
+        line = line.strip()
+        if '(' in line:
+            is_comment = False
+            line2 = ''
+            for item in re.split('\((.*?)\)', line):
+                if not is_comment:
+                    line2 += item
+                else:
+                    cs = self.current_status
+                    self.current_status = (cs[0], cs[1], item)
+                is_comment = not is_comment
+            line = line2
+        return line
     def try_pull(self):
         while True:
             cmd = None
@@ -46,7 +61,11 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
                 cmd = self.history_model.getNextCommand()
             if cmd is None:
                 return
-            error = sender.GrblStateMachine.send_line(self, cmd.command, cmd)
+            command = self.prepare(cmd.command)
+            if command == '':
+                cmd.set_status("Empty - Ignored")
+                return
+            error = sender.GrblStateMachine.send_line(self, command, cmd)
             if error is not None:
                 cmd.rollback()
                 return
@@ -78,7 +97,7 @@ class GrblInterface(QtCore.QObject):
         if self.grbl:
             return self.grbl.get_status()
         else:
-            return ('Not connected', {})
+            return ('Not connected', {}, '')
     def onStatus(self):
         self.status.emit()
     def onLineReceived(self, line):
@@ -207,7 +226,7 @@ class HistoryLineEdit(QtGui.QLineEdit):
         #    self.history_cursor += ito - ifrom + 1
         self.history_cursor = ito + 1
     def keyPressEvent(self, e):
-        if (e.modifiers() & QtCore.Qt.AltModifier) == 0:
+        if int(e.modifiers() & QtCore.Qt.AltModifier) == 0:
             if e.key() == QtCore.Qt.Key_Up:
                 if self.history_cursor > 0:
                     self.history_cursor -= 1
@@ -263,6 +282,7 @@ class CNCPendant(QtGui.QGroupBox):
         self.holdButton = addButton("Hold", self.onMachineFeedHold)
         self.resumeButton = addButton("Resume", self.onMachineResume)
         self.resetButton = addButton("Soft Reset", self.onMachineSoftReset)
+        self.commentWidget = QtGui.QLabel("")
 
         self.workWidgets = {}
         self.machineWidgets = {}
@@ -283,9 +303,10 @@ class CNCPendant(QtGui.QGroupBox):
         self.grbl.history.dataChanged.connect(self.onTableDataChanged)
         self.grbl.history.rowsInserted.connect(self.onTableRowsInserted)
         
-        layout.addWidget(self.tableview)
+        layout.addRow(self.tableview)
         layout.addRow("Command:", cmdLayout)
         layout.addRow("Status:", statusLayout)
+        layout.addRow("Last comment:", self.commentWidget)
         grid.addLayout(layout, 0, 0, 1, 3)
         
         layout = QtGui.QGridLayout()
@@ -356,9 +377,10 @@ class CNCPendant(QtGui.QGroupBox):
             self.cmdHistory.append(cmd)
             self.grbl.sendLine(cmd)
         self.cmdWidget.setText('')
-    def updateStatusWidgets(self, mode, args):
+    def updateStatusWidgets(self, mode, args, last_comment):
         fmt = "%0.3f"
         self.modeWidget.setText(mode)
+        self.commentWidget.setText(last_comment)
         self.cmdButton.setEnabled(self.grbl.canAcceptCommands(mode) and not self.grbl.isRunningAJob())
         self.jogger.setEnabled(self.grbl.canAcceptCommands(mode))
         self.holdButton.setEnabled(mode not in ["Hold", "Alarm"])
