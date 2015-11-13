@@ -21,11 +21,12 @@ class SerialDeviceFinder:
             import _winreg
             key = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'HARDWARE\\DEVICEMAP\\SERIALCOMM')
             while True:
-                dev = _winreg.EnumValue(key, len(devices))
-                if dev is None:
+                try:
+                    dev = _winreg.EnumValue(key, len(self.devices))
+                except:
                     break
                 devdesc, devname, _ = dev
-                devices.append((str(devname), str(devdesc)))
+                self.devices.append((str(devname), str(devdesc)))
         print self.devices
         
 class SerialLineReader:
