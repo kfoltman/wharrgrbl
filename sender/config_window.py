@@ -1,6 +1,6 @@
 import math
 import sys
-from config import Settings
+from config import Global
 from sender import SerialDeviceFinder
 from PyQt4 import QtCore, QtGui
 from helpers.gui import MenuHelper
@@ -81,7 +81,7 @@ class AppConfigDialog(QtGui.QDialog):
         devices = [(None, "Autodetect the device")] + list(self.finder.devices)
         self.defaultDeviceIndex = 0
         for device, name in sorted(devices, cmp = lambda i1, i2: cmp(i1[0], i2[0])):
-            if device == Settings.device:
+            if device == Global.settings.device:
                 self.defaultDeviceIndex = self.comPorts.rowCount()
             self.comPorts.appendRow([QtGui.QStandardItem(device or "Autodetect"), QtGui.QStandardItem(name)])
 
@@ -114,4 +114,4 @@ class AppConfigDialog(QtGui.QDialog):
         #self.add(self.tableView)
         pass
     def save(self):
-        print "Not implemented yet"
+        Global.settings.save()

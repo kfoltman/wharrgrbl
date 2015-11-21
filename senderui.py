@@ -4,7 +4,7 @@ import sys
 from PyQt4 import QtCore, QtGui
 from sender import sender
 from helpers.gui import MenuHelper
-from sender.config import Settings, Fonts
+from sender.config import Global
 from sender.config_window import *
 from sender.cmdlist import *
 
@@ -20,7 +20,7 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         self.history_model = history_model
         self.job_model = None
         self.current_status = ('Initialized', {}, '', None)
-        sender.GrblStateMachine.__init__(self, Settings.device, Settings.speed)
+        sender.GrblStateMachine.__init__(self, Global.settings.device, Global.settings.speed)
     def handle_line(self, line):
         if not (line.startswith('<') and line.endswith('>')):
             self.line_received.emit(line)
@@ -106,7 +106,7 @@ class GrblInterface(QtCore.QObject):
         self.job = None
         self.history = GcodeJobModel()
         self.config_model = GrblConfigModel(self)
-        self.startTimer(Settings.timer_interval)
+        self.startTimer(Global.settings.timer_interval)
     def connectToGrbl(self):
         self.grbl = GrblStateMachineWithSignals(self.history, self.config_model)
         self.grbl.status.connect(self.onStatus)
@@ -178,7 +178,7 @@ class CNCJogger(QtGui.QGroupBox):
         return True
     def makeButton(self, name, layout, locx, locy):
         button = QtGui.QPushButton(name)
-        button.setFont(Fonts.bigBoldFont)
+        button.setFont(Global.fonts.bigBoldFont)
         button.setMaximumWidth(QtGui.QFontMetrics(button.font()).width(name.replace("-", "+")) + 10)
         button.clicked.connect(lambda: self.handleButton(name[0], 1 if name[1] == '+' else -1))
         button.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -215,11 +215,11 @@ class CNCJogger(QtGui.QGroupBox):
             self.steps_changed.connect(lambda: rb.setChecked(getattr(self, var) == v))
             steps.addWidget(rb)
         steps = QtGui.QVBoxLayout()
-        for d in Settings.xysteps:
+        for d in Global.settings.xysteps:
             addButton(steps, 'distxy', "%smm" % d, d)
         layout.addLayout(steps, 0, 3, 4, 1)
         speeds = QtGui.QVBoxLayout()
-        for d in Settings.xyspeeds:
+        for d in Global.settings.xyspeeds:
             addButton(speeds, 'speedxy', "F%s" % d if d is not None else "Rapid", d)
         layout.addLayout(speeds, 0, 4, 4, 1)
 
@@ -228,11 +228,11 @@ class CNCJogger(QtGui.QGroupBox):
         layout.addWidget(frm, 0, 5, 4, 1)
 
         steps = QtGui.QVBoxLayout()
-        for d in Settings.zsteps:
+        for d in Global.settings.zsteps:
             addButton(steps, 'distz', "%smm" % d, d)
         layout.addLayout(steps, 0, 7, 4, 1)
         speeds = QtGui.QVBoxLayout()
-        for d in Settings.zspeeds:
+        for d in Global.settings.zspeeds:
             addButton(speeds, 'speedz', "F%s" % d if d is not None else "Rapid", d)
         layout.addLayout(speeds, 0, 8, 4, 1)
 
@@ -295,7 +295,7 @@ class CNCPendant(QtGui.QGroupBox):
         cmdLayout.addWidget(self.cmdButton)
         
         self.modeWidget = QtGui.QLabel()
-        self.modeWidget.setFont(Fonts.mediumBoldFont)
+        self.modeWidget.setFont(Global.fonts.mediumBoldFont)
         statusLayout.addWidget(self.modeWidget)
         def addButton(name, func):
             b = QtGui.QPushButton(name)
@@ -345,10 +345,10 @@ class CNCPendant(QtGui.QGroupBox):
         for index, axis in enumerate(['X', 'Y', 'Z']):
             label = QtGui.QLabel(axis)
             label.setScaledContents(False)
-            label.setFont(Fonts.bigBoldFont)
+            label.setFont(Global.fonts.bigBoldFont)
             layout.addWidget(label, index + 1, 0, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
             coordWidget = QtGui.QLabel("-")
-            coordWidget.setFont(Fonts.bigBoldFont)
+            coordWidget.setFont(Global.fonts.bigBoldFont)
             coordWidget.setAlignment(alignment)
             layout.addWidget(coordWidget, index + 1, 1)
             self.workWidgets[axis] = coordWidget
@@ -359,7 +359,7 @@ class CNCPendant(QtGui.QGroupBox):
             zeroWidget.clicked.connect(q(axis))
             layout.addWidget(zeroWidget, index + 1, 2)
             coordWidget = QtGui.QLabel("-")
-            coordWidget.setFont(Fonts.bigFont)
+            coordWidget.setFont(Global.fonts.bigFont)
             coordWidget.setAlignment(alignment)
             layout.addWidget(coordWidget, index + 1, 3)
             self.machineWidgets[axis] = coordWidget
@@ -370,7 +370,7 @@ class CNCPendant(QtGui.QGroupBox):
         self.jogger = CNCJogger(self.grbl)
         grid.addWidget(self.jogger, 1, 2, 1, 1)
         self.macros = QtGui.QHBoxLayout()
-        for name, command in Settings.macros:
+        for name, command in Global.settings.macros:
             button = QtGui.QPushButton(name)
             def q(command):
                 return lambda: self.grbl.sendLine(command)
@@ -587,6 +587,7 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
 
 def main():    
     app = CNCApplication(sys.argv)
+    Global.settings.load()
     w = CNCMainWindow()
     if len(sys.argv) > 1:
         w.jobs.loadFile(sys.argv[1])
