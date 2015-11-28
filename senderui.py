@@ -127,7 +127,7 @@ class GrblInterface(QtCore.QObject):
         self.line_received.emit(line)
     def timerEvent(self, e):
         if self.grbl is not None:
-            self.grbl.ask_for_status()
+            self.grbl.ask_for_status_if_idle()
             while self.grbl.handle_input():
                 pass
             self.grbl.try_pull()

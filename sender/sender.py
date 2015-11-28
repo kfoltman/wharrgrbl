@@ -173,6 +173,9 @@ class GrblStateMachine:
         print status, params
     def ask_for_status(self):
         self.reader.write('?')
+    def ask_for_status_if_idle(self):
+        if sum(map((lambda lineandcontext: len(lineandcontext[0])), self.outqueue)) + len(self.outqueue) + 1 < self.maxbytes / 2:
+            self.ask_for_status()
     def pause(self):
         self.reader.write('!')
     def restart(self):
