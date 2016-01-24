@@ -107,6 +107,7 @@ class GrblInterface(QtCore.QObject):
         self.history = GcodeJobModel()
         self.config_model = GrblConfigModel(self)
         self.startTimer(Global.settings.timer_interval)
+        self.status_counter = 0
     def connectToGrbl(self):
         self.grbl = GrblStateMachineWithSignals(self.history, self.config_model)
         self.grbl.status.connect(self.onStatus)
@@ -127,7 +128,11 @@ class GrblInterface(QtCore.QObject):
         self.line_received.emit(line)
     def timerEvent(self, e):
         if self.grbl is not None:
-            self.grbl.ask_for_status_if_idle()
+            if self.status_counter == 0:
+                self.grbl.ask_for_status_if_idle()
+            else:
+                self.grbl.ask_for_status()
+            self.status_counter = (self.status_counter + 1) % 5
             while self.grbl.handle_input():
                 pass
             self.grbl.try_pull()
