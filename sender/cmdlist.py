@@ -58,6 +58,7 @@ class GcodeJobModel(QtCore.QAbstractTableModel):
         return QtCore.Qt.NoItemFlags
     def getNextCommand(self):
         if self.history_pos >= len(self.commands):
+            self.running = False
             return None
         cmd = self.commands[self.history_pos]
         self.history_pos += 1
