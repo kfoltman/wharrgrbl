@@ -36,7 +36,7 @@ class Settings:
             v, t = v.toDouble()
             return v if t else None
         def restoremacro(qs):
-            return (qs.value("name").toString(), qs.value("command").toString())
+            return (str(qs.value("name").toString()), str(qs.value("command").toString()))
         self.device = qs.value("serial/device", None).toString()
         if self.device == "":
             self.device = None
