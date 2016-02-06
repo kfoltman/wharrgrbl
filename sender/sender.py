@@ -69,6 +69,7 @@ class SerialLineReader:
 class GrblStateMachine:
     def __init__(self, *args, **kwargs):
         self.reader = SerialLineReader(*args, **kwargs)
+        self.position_queries = 0
         self.wait_for_banner()
     def wait_for_banner(self):
         self.banner_time = time.time()
@@ -92,6 +93,7 @@ class GrblStateMachine:
             return True
         if inp.startswith('<') and inp.endswith('>'):
             self.banner_time = None
+            self.position_queries -= 1
             self.process_status(inp)
             return True
         if self.banner_time is not None:
@@ -172,9 +174,10 @@ class GrblStateMachine:
     def process_cooked_status(self, status, params):
         print status, params
     def ask_for_status(self):
+        self.position_queries += 1
         self.reader.write('?')
     def ask_for_status_if_idle(self):
-        if sum(map((lambda lineandcontext: len(lineandcontext[0])), self.outqueue)) + len(self.outqueue) + 1 < self.maxbytes / 2:
+        if self.banner_time is None and self.position_queries == 0:
             self.ask_for_status()
     def pause(self):
         self.reader.write('!')

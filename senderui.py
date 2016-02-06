@@ -110,7 +110,6 @@ class GrblInterface(QtCore.QThread):
         self.job = None
         self.history = GcodeJobModel()
         self.config_model = GrblConfigModel(self)
-        self.status_counter = 0
         self.exiting = False
         self.out_queue = []
         self.line_sent.connect(self.onLineSent)
@@ -123,11 +122,7 @@ class GrblInterface(QtCore.QThread):
             if self.grbl is not None:
                 if len(self.out_queue):
                     self.grbl.send_line(self.out_queue.pop(0))
-                if self.status_counter == 0:
-                    self.grbl.ask_for_status_if_idle()
-                else:
-                    self.grbl.ask_for_status()
-                self.status_counter = (self.status_counter + 1) % 5
+                self.grbl.ask_for_status_if_idle()
                 while self.grbl.handle_input():
                     pass
                 self.grbl.try_pull()
