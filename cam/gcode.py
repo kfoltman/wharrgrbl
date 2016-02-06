@@ -50,6 +50,7 @@ class GcodeOutputBase:
         self.operation = operation
         self.material = material
         self.tool = tool
+        self.last_feed = None
         if operation is not None:
             self.zdepth = operation.zsurface
         elif material is not None:
@@ -59,6 +60,7 @@ class GcodeOutputBase:
     def set_tool(self, tool):
         self.tool = tool
     def preamble(self):
+        self.last_feed = None
         self.write("G90 G17\n")
     def set_depth(self, depth):
         self.zdepth = depth
@@ -85,31 +87,39 @@ class GcodeOutputBase:
         if self.z is None or abs(z - self.z) > 0.001:
             # If the target is above the surface, always use rapids
             if z >= self.get_surface():
-                self.write("G00 Z%0.3f" % z)
+                self.write("G0Z%0.3f" % z)
             else:
                 if self.z is None or self.z > self.get_surface():
                     # if Z unknown or above surface, rapid to surface first
-                    self.write("G00 Z%0.3f" % self.get_surface())
+                    self.write("G0Z%0.3f" % self.get_surface())
                 elif z > self.z:
                     # move upwards
-                    self.write("G00 Z%0.3f" % z)
+                    self.write("G0Z%0.3f" % z)
                     self.z = z
                     return
                 # slowly plunge to the target depth
-                self.write("G01 Z%0.3f F%0.3f" % (z, self.get_plunge()))
+                self.emit_feed(self.get_plunge())
+                self.write("G1Z%0.3f" % z)
             self.z = z
     def move_to(self, x, y):
         self.get_safe()
-        self.write("G00 X%0.3f Y%0.3f" % (self.grid * x, self.grid * y))
+        self.write("G0X%0.3fY%0.3f" % (self.grid * x, self.grid * y))
     def line_to(self, x, y):
         self.move_z(self.zdepth)
-        self.write("G01 X%0.3f Y%0.3f F%0.3f" % (self.grid * x, self.grid * y, self.get_feed()))
+        self.emit_feed(self.get_feed())
+        self.write("G1X%0.3fY%0.3f" % (self.grid * x, self.grid * y))
     def arc_cw_to(self, x, y, i, j, feed):
         self.move_z(self.zdepth)
-        self.write("G02 X%0.3f Y%0.3f I%0.3f J%0.3f F%d" % (x, y, i, j, feed))
+        self.emit_feed(feed)
+        self.write("G2X%0.3fY%0.3fI%0.3fJ%0.3f" % (x, y, i, j))
     def arc_ccw_to(self, x, y, i, j, feed):
         self.move_z(self.zdepth)
-        self.write("G03 X%0.3f Y%0.3f I%0.3f J%0.3f F%d" % (x, y, i, j, feed))
+        self.emit_feed(feed)
+        self.write("G3X%0.3fY%0.3fI%0.3fJ%0.3f" % (x, y, i, j))
+    def emit_feed(self, feed):
+        if self.last_feed != feed:
+            self.last_feed = feed
+            self.write("F%0.1f" % feed)
     def end(self):
         if self.operation is not None and self.operation.zend is not None:
             self.move_z(self.operation.zend)
