@@ -219,13 +219,17 @@ class CNCJogger(QtGui.QGroupBox):
             rb.clicked.connect(lambda: self.handleSteps(var, v))
             self.steps_changed.connect(lambda: rb.setChecked(getattr(self, var) == v))
             steps.addWidget(rb)
+        def fmtfloat(v):
+            if v == int(v):
+                return str(int(v))
+            return str(v)
         steps = QtGui.QVBoxLayout()
         for d in Global.settings.xysteps:
-            addButton(steps, 'distxy', "%smm" % d, d)
+            addButton(steps, 'distxy', "%smm" % fmtfloat(d), d)
         layout.addLayout(steps, 0, 3, 4, 1)
         speeds = QtGui.QVBoxLayout()
         for d in Global.settings.xyspeeds:
-            addButton(speeds, 'speedxy', "F%s" % d if d is not None else "Rapid", d)
+            addButton(speeds, 'speedxy', "F%s" % fmtfloat(d) if d is not None else "Rapid", d)
         layout.addLayout(speeds, 0, 4, 4, 1)
 
         frm = QtGui.QFrame()
@@ -234,11 +238,11 @@ class CNCJogger(QtGui.QGroupBox):
 
         steps = QtGui.QVBoxLayout()
         for d in Global.settings.zsteps:
-            addButton(steps, 'distz', "%smm" % d, d)
+            addButton(steps, 'distz', "%smm" % fmtfloat(d), d)
         layout.addLayout(steps, 0, 7, 4, 1)
         speeds = QtGui.QVBoxLayout()
         for d in Global.settings.zspeeds:
-            addButton(speeds, 'speedz', "F%s" % d if d is not None else "Rapid", d)
+            addButton(speeds, 'speedz', "F%s" % fmtfloat(d) if d is not None else "Rapid", d)
         layout.addLayout(speeds, 0, 8, 4, 1)
 
         self.steps_changed.emit()
