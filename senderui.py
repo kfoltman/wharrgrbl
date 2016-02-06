@@ -155,7 +155,6 @@ class GrblInterface(QtCore.QThread):
     def onLineSent(self, line):
         self.out_queue.append(str(line))
     def sendLine(self, line):
-        print "sendLine: %s" % repr(line)
         if self.grbl is not None:
             self.line_sent.emit(line)
         else:
