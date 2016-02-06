@@ -1,6 +1,7 @@
 import math
 import re
 import sys
+import time
 from PyQt4 import QtCore, QtGui
 from sender import sender
 from helpers.gui import MenuHelper
@@ -97,17 +98,42 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
     def set_job(self, job):
         self.job_model = job
 
-class GrblInterface(QtCore.QObject):
+class GrblInterface(QtCore.QThread):
     status = QtCore.pyqtSignal([])
+    # signal: line has been received
     line_received = QtCore.pyqtSignal([str])
+    # internal
+    line_sent = QtCore.pyqtSignal([str])
     def __init__(self):
         QtCore.QObject.__init__(self)
         self.grbl = None
         self.job = None
         self.history = GcodeJobModel()
         self.config_model = GrblConfigModel(self)
-        self.startTimer(Global.settings.timer_interval)
         self.status_counter = 0
+        self.exiting = False
+        self.out_queue = []
+        self.line_sent.connect(self.onLineSent)
+        self.start()
+    def __del__(self):
+        self.exiting = True
+        self.wait()
+    def run(self):
+        while not self.exiting:
+            if self.grbl is not None:
+                if len(self.out_queue):
+                    self.grbl.send_line(self.out_queue.pop(0))
+                if self.status_counter == 0:
+                    self.grbl.ask_for_status_if_idle()
+                else:
+                    self.grbl.ask_for_status()
+                self.status_counter = (self.status_counter + 1) % 5
+                while self.grbl.handle_input():
+                    pass
+                self.grbl.try_pull()
+            else:
+                self.onStatus()
+            time.sleep(0.01)
     def connectToGrbl(self):
         self.grbl = GrblStateMachineWithSignals(self.history, self.config_model)
         self.grbl.status.connect(self.onStatus)
@@ -126,21 +152,12 @@ class GrblInterface(QtCore.QObject):
         self.status.emit()
     def onLineReceived(self, line):
         self.line_received.emit(line)
-    def timerEvent(self, e):
-        if self.grbl is not None:
-            if self.status_counter == 0:
-                self.grbl.ask_for_status_if_idle()
-            else:
-                self.grbl.ask_for_status()
-            self.status_counter = (self.status_counter + 1) % 5
-            while self.grbl.handle_input():
-                pass
-            self.grbl.try_pull()
-        else:
-            self.onStatus('Disconnected', {})
+    def onLineSent(self, line):
+        self.out_queue.append(str(line))
     def sendLine(self, line):
+        print "sendLine: %s" % repr(line)
         if self.grbl is not None:
-            self.grbl.send_line(line)
+            self.line_sent.emit(line)
         else:
             raise ValueError("connection not established")
     def setJob(self, job):

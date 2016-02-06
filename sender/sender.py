@@ -113,7 +113,7 @@ class GrblStateMachine:
         if inp[0] == '[' and inp[-1] == ']':
             if ':' in inp:
                 par, values = inp[1:-1].split(":", 1)
-                self.handle_gcode_parameter(par, values)
+                self.handle_gcode_parameter(par, values.strip())
             else:
                 self.handle_gcode_state(inp[1:-1].split(" "))
             return True
