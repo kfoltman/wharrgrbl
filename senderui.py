@@ -417,6 +417,7 @@ class CNCPendant(QtGui.QGroupBox):
         self.jogger.setEnabled(self.grbl.canAcceptCommands(mode))
         self.holdButton.setEnabled(mode not in ["Hold", "Alarm"])
         self.resumeButton.setEnabled(mode == "Hold")
+        self.resetButton.setEnabled(mode != "Alarm")
         def update(axis, pos):
             for i, a in enumerate(['X', 'Y', 'Z']):
                 axis[a].setText(fmt % pos[i])
