@@ -70,6 +70,7 @@ class GrblStateMachine:
     def __init__(self, *args, **kwargs):
         self.reader = SerialLineReader(*args, **kwargs)
         self.position_queries = 0
+        self.last_status = 0
         self.wait_for_banner()
     def wait_for_banner(self):
         self.banner_time = time.time()
@@ -163,6 +164,7 @@ class GrblStateMachine:
         print "Alarm pop: %s - %s" % (line, message)
     def process_status(self, response):
         if response[0] == '<' and response[-1] == '>':
+            self.last_status = time.time()
             status, params = response[1:-1].split(",", 1)
             cooked = {}
             for kw, value in re.findall(r'([A-Za-z]+):([0-9.,-]+)', params):
@@ -177,7 +179,11 @@ class GrblStateMachine:
         self.position_queries += 1
         self.reader.write('?')
     def ask_for_status_if_idle(self):
-        if self.banner_time is None and self.position_queries == 0:
+        if self.position_queries > 0 and time.time() > self.last_status + 1:
+            self.position_queries -= 1
+            if self.position_queries > 0 and time.time() > self.last_status + 5:
+                self.position_queries = 0
+        if self.banner_time is None and (self.position_queries == 0):
             self.ask_for_status()
     def pause(self):
         self.reader.write('!')
