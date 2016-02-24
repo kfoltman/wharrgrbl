@@ -183,7 +183,8 @@ class GrblStateMachine:
             self.position_queries -= 1
             if self.position_queries > 0 and time.time() > self.last_status + 5:
                 self.position_queries = 0
-        if self.banner_time is None and (self.position_queries == 0):
+        if self.banner_time is None and (self.position_queries <= 0):
+            self.position_queries = 0
             self.ask_for_status()
     def pause(self):
         self.reader.write('!')
