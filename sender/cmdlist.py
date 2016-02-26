@@ -83,3 +83,5 @@ class GcodeJobModel(QtCore.QAbstractTableModel):
         self.dataChanged.emit(cell1, cell2)
     def isPaused(self):
         return not self.running and self.history_pos > 0 and self.history_pos < len(self.commands)
+    def isCancellable(self):
+        return self.history_pos > 0 and self.history_pos < len(self.commands)

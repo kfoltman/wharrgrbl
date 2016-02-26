@@ -164,6 +164,8 @@ class GrblInterface(QtCore.QThread):
         return (self.job is not None) and self.job.running
     def isJobPaused(self):
         return (self.job is not None) and self.job.isPaused()
+    def isJobCancellable(self):
+        return (self.job is not None) and self.job.isCancellable()
 
 class CNCJogger(QtGui.QGroupBox):
     steps_changed = QtCore.pyqtSignal([])
@@ -509,7 +511,7 @@ class CNCJobControl(QtGui.QGroupBox):
         self.buttons['Run'].setEnabled(self.grbl.job is not None and not self.grbl.isRunningAJob())
         self.buttons['Pause'].setEnabled(self.grbl.isRunningAJob())
         self.buttons['Resume'].setEnabled(self.grbl.isJobPaused())
-        self.buttons['Cancel'].setEnabled(self.grbl.job is not None)
+        self.buttons['Cancel'].setEnabled(self.grbl.isJobCancellable())
     def setJob(self, job):
         job.dataChanged.connect(self.onJobTableDataChanged)    
         self.jobCommands.setModel(job)
