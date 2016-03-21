@@ -31,6 +31,10 @@ class SerialDeviceFinder:
         
 class SerialLineReader:
     def __init__(self, device = None, speed = 115200):
+        self.device = device
+        self.speed = speed
+        self.open_device(self.device, self.speed)
+    def open_device(self, device, speed):
         if device is None or device[0:1] == '=':
             finder = SerialDeviceFinder()
             if len(finder.devices) == 0:
@@ -53,7 +57,10 @@ class SerialLineReader:
     def writeln(self, data):
         self.write(data + "\n")
     def poll(self):
-        buf = self.ser.read(1024)
+        try:
+            buf = self.ser.read(1024)
+        except:
+            return None
         self.data += buf
         while True:
             pos = self.data.find('\n')
