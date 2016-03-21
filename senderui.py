@@ -5,6 +5,7 @@ import time
 from PyQt4 import QtCore, QtGui
 from sender import sender
 from helpers.gui import MenuHelper
+from sender.jobviewer import *
 from sender.config import Global
 from sender.config_window import *
 from sender.cmdlist import *
@@ -472,6 +473,7 @@ class CNCJobControl(QtGui.QGroupBox):
         QtGui.QWidget.__init__(self)
         self.setTitle("Job control")
         self.grbl = grbl
+        self.jobViewer = None
         self.initUI()
     def initUI(self):
         layout = QtGui.QVBoxLayout()
@@ -493,6 +495,7 @@ class CNCJobControl(QtGui.QGroupBox):
             ('Pause', self.onJobPause),
             ('Resume', self.onJobResume),
             ('Cancel', self.onJobCancel),
+            ('View', self.onJobView),
         ]
         self.buttons = {}
         buttons = QtGui.QHBoxLayout()
@@ -553,6 +556,11 @@ class CNCJobControl(QtGui.QGroupBox):
         if job is not None:
             job.cancel()
         self.updateButtons()
+    def onJobView(self):
+        if self.jobViewer is None:
+            self.jobViewer = JobPreviewWindow()
+        self.jobViewer.setJob(self.grbl.job)
+        self.jobViewer.show()
     def onFileOpen(self):
         fname = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
         if fname != '':
