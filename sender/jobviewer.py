@@ -7,9 +7,10 @@ class JobPreview(QtGui.QWidget):
         QtGui.QWidget.__init__(self)
         self.job = None
         self.motions = None
-        self.scaleLevel = 1
-        self.x0 = 0
-        self.y0 = 0
+        self.scaleLevel = -3
+        self.grid = 50
+        self.x0 = -10
+        self.y0 = -10
         self.dragging = False
         self.initUI()
     def initUI(self):
@@ -21,8 +22,25 @@ class JobPreview(QtGui.QWidget):
         qp.setRenderHint(1, True)
         qp.setRenderHint(8, True)
         qp.setBrush(QtGui.QBrush(QtGui.QColor(192, 192, 192), 1))
-        qp.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255), 0))        
+        qp.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255), 0))
         qp.drawRect(self.rect())
+
+        qp.setPen(QtGui.QPen(QtGui.QColor(208, 208, 208), 1))        
+        gx = self.x0 - self.x0 % self.grid
+        gy = self.y0 - self.y0 % self.grid
+        while True:
+            mx, my = self.project(0, gy, 0)
+            if my < 0:
+                break
+            qp.drawLine(0, my, self.size().width(), my)
+            gy += self.grid
+        while True:
+            mx, my = self.project(gx, 0, 0)
+            if mx > self.size().width():
+                break
+            qp.drawLine(mx, 0, mx, self.size().height())
+            gx += self.grid
+
         qp.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255), 1))        
 
         mx, my = self.project(0, 0, 0)
@@ -51,13 +69,13 @@ class JobPreview(QtGui.QWidget):
         xs, ys = self.project(m.xs, m.ys, m.zs)
         xe, ye = self.project(m.xe, m.ye, m.ze)
         r = ((m.xs - m.xc) ** 2 + (m.ys - m.yc) ** 2) ** 0.5
-        sangle = -math.atan2(m.ys - m.yc, m.xs - m.xc) * 5760 / (2 * math.pi)
-        eangle = -math.atan2(m.ye - m.yc, m.xe - m.xc) * 5760 / (2 * math.pi)
+        sangle = math.atan2(m.ys - m.yc, m.xs - m.xc) * 5760 / (2 * math.pi)
+        eangle = math.atan2(m.ye - m.yc, m.xe - m.xc) * 5760 / (2 * math.pi)
         # XXXKF This is limited to XY arcs
         xc, yc = self.project(m.xc, m.yc, m.zs)
         r *= self.getScale()
         span = eangle - sangle
-        if not m.clockwise:
+        if m.clockwise:
             if span > 0:
                 span -= 5760
         else:
@@ -67,7 +85,7 @@ class JobPreview(QtGui.QWidget):
         
     def project(self, x, y, z):
         scale = self.getScale()
-        return (x - self.x0) * scale, (y - self.y0) * scale
+        return (x - self.x0) * scale, -(y - self.y0) * scale + self.rect().height()
     def getScale(self):
         return 10 * (2 ** (self.scaleLevel / 2.0))
     def wheelEvent(self, e):
@@ -78,13 +96,14 @@ class JobPreview(QtGui.QWidget):
             self.adjustScale(-1, e.pos())
             self.repaint()
     def adjustScale(self, rel, pt):
+        h = self.rect().height()
         scale = self.getScale()
         xm = self.x0 + pt.x() / scale
-        ym = self.y0 + pt.y() / scale
+        ym = self.y0 + (h - pt.y()) / scale
         self.scaleLevel += rel
         scale = self.getScale()
         self.x0 = xm - pt.x() / scale
-        self.y0 = ym - pt.y() / scale
+        self.y0 = ym - (h - pt.y()) / scale
 
     def mousePressEvent(self, e):
         self.start_point = e.posF()
@@ -97,7 +116,7 @@ class JobPreview(QtGui.QWidget):
     def mouseMoveEvent(self, e):
         if self.dragging:
             self.x0 = self.start_origin[0] - (e.posF().x() - self.start_point.x()) / self.getScale()
-            self.y0 = self.start_origin[1] - (e.posF().y() - self.start_point.y()) / self.getScale()
+            self.y0 = self.start_origin[1] + (e.posF().y() - self.start_point.y()) / self.getScale()
             self.repaint()
         
     def setJob(self, job):
