@@ -88,6 +88,8 @@ class JobPreview(QtGui.QWidget):
         return (x - self.x0) * scale, -(y - self.y0) * scale + self.rect().height()
     def getScale(self):
         return 10 * (2 ** (self.scaleLevel / 2.0))
+    def findScaleLevel(self, scale):
+        return math.floor(2 * (math.log(scale / 10.0) / math.log(2.0)))
     def wheelEvent(self, e):
         if e.delta() > 0:
             self.adjustScale(+1, e.pos())
@@ -127,9 +129,16 @@ class JobPreview(QtGui.QWidget):
             for cmd in self.job.commands:
                 gs.handle_line(cmd.command)
             self.motions = rec.motions
+            self.zoomToBbox(rec.bbox_min, rec.bbox_max)
         else:
             self.motions = None
         self.repaint()
+
+    def zoomToBbox(self, pmin, pmax):
+        self.x0, self.y0 = pmin[0], pmin[1]
+        wx, wy = pmax[0] - pmin[0], pmax[1] - pmin[1]
+        size = self.size()
+        self.scaleLevel = self.findScaleLevel(min(size.width() / wx, size.height() / wy))
 
 class JobPreviewWindow(QtGui.QDialog):
     def __init__(self):
