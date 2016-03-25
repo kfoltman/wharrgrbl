@@ -562,9 +562,30 @@ class CNCJobControl(QtGui.QGroupBox):
         self.jobViewer.setJob(self.grbl.job)
         self.jobViewer.show()
     def onFileOpen(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
-        if fname != '':
-            self.loadFile(fname)
+        #fname = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
+        opendlg = QtGui.QFileDialog(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
+        opendlg.setFileMode(QtGui.QFileDialog.ExistingFile)
+        mainLayout = opendlg.layout()
+        preview = JobPreview()
+        mainLayout.addWidget(preview, 0, mainLayout.columnCount(), mainLayout.rowCount(), 1)
+        #mainLayout.setColumnStretch(mainLayout.columnCount() - 1, 1)
+        opendlg.resize(opendlg.size().width() + preview.size().width() + 100, opendlg.size().height())
+        def setJob(filename):
+            success = False
+            if filename != '':
+                try:
+                    if filename != '':
+                        preview.loadFromFile(filename)
+                        success = True
+                except:
+                    pass
+            if not success:
+                preview.setFromList([])
+        opendlg.currentChanged.connect(setJob)
+        if opendlg.exec_():
+            fnames = opendlg.selectedFiles()
+            if len(fnames) == 1:
+                self.loadFile(fnames[0])
 
 
 

@@ -8,15 +8,12 @@ class JobPreview(QtGui.QWidget):
         QtGui.QWidget.__init__(self)
         self.job = None
         self.motions = None
-        self.scaleLevel = -3
+        self.resetView()
         self.grid = 50
-        self.x0 = -10
-        self.y0 = -10
         self.dragging = False
         self.toolDiameter = 1
         self.initUI()
     def initUI(self):
-        self.setMinimumSize(800, 600)
         self.setMouseTracking(True)
     def paintEvent(self, e):
         self.millingPen = QtGui.QPen(QtGui.QColor(0, 0, 0), self.toolDiameter * self.getScale())
@@ -127,25 +124,42 @@ class JobPreview(QtGui.QWidget):
             self.y0 = self.start_origin[1] + (e.posF().y() - self.start_point.y()) / self.getScale()
             self.repaint()
         
+    def loadFromFile(self, fileName):
+        self.setFromList([l.strip() for l in open(fileName, "r").readlines()])
+    
+    def setFromList(self, cmds):
+        rec = TestGcodeReceiver()
+        gs = GcodeState(rec)
+        for cmd in cmds:
+            gs.handle_line(cmd)
+        self.motions = rec.motions
+        self.zoomToBbox(rec.bbox_min, rec.bbox_max)
+        self.repaint()
+    
     def setJob(self, job):
         self.job = job
         if job:
-            rec = TestGcodeReceiver()
-            gs = GcodeState(rec)
-            for cmd in self.job.commands:
-                gs.handle_line(cmd.command)
-            self.motions = rec.motions
-            self.zoomToBbox(rec.bbox_min, rec.bbox_max)
+            self.setFromList([cmd.command for cmd in self.job.commands])
         else:
             self.motions = None
-        self.repaint()
+
+    def resetView(self):
+        self.x0 = -10
+        self.y0 = -10
+        self.scaleLevel = -3
 
     def zoomToBbox(self, pmin, pmax):
         # slight margin of one tool radius
+        if pmin is None:
+            self.resetView()
+            return
         self.x0, self.y0 = pmin[0] - self.toolDiameter, pmin[1] - self.toolDiameter
         wx, wy = pmax[0] - pmin[0] + self.toolDiameter * 2.0, pmax[1] - pmin[1] + self.toolDiameter * 2.0
         size = self.size()
         self.scaleLevel = self.findScaleLevel(min(size.width() / wx, size.height() / wy))
+        
+    def sizeHint(self):
+        return QtCore.QSize(300, 100)
 
 class JobPreviewWindow(QtGui.QDialog):
     def __init__(self):
@@ -154,6 +168,7 @@ class JobPreviewWindow(QtGui.QDialog):
     def initUI(self):
         self.layout = QtGui.QVBoxLayout()
         self.preview = JobPreview()
+        self.preview.setMinimumSize(800, 600)
         self.layout.addWidget(self.preview)
         self.setLayout(self.layout)
     def setJob(self, job):
