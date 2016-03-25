@@ -222,6 +222,7 @@ class GcodeCommands(object):
 class GcodeState(object):
     def __init__(self, receiver):
         self.receiver = receiver
+        self.word_extractor = re.compile("([A-Za-z])([-+0-9.]*)")
     @staticmethod
     def prepare(line):
         line = line.strip()
@@ -253,7 +254,7 @@ class GcodeState(object):
     def handle_line(self, line):
         words = {}
         line, comment = self.prepare(line)
-        for word, value in re.findall("([A-Z])([-+0-9.]*)", line):
+        for word, value in self.word_extractor.findall(line):
             if value != "":
                 valueFloat = float(value)
             else:
