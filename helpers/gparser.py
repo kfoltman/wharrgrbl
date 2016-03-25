@@ -79,6 +79,12 @@ class TestGcodeReceiver(object):
         #print "%s Arc: (%f, %f, %f) -> (%f, %f, %f), (%f, %f) with feed=%s" % ("CW" if clockwise else "CCW", self.x, self.y, self.z, x, y, z, xc, yc, feed)
         r1 = ((self.x - xc) ** 2 + (self.y - yc) ** 2) ** 0.5
         r2 = ((x - xc) ** 2 + (y - yc) ** 2) ** 0.5
+        r = max(r1, r2)
+        # XXXKF This is a little bit heavy-handed, as it adds the whole circle instead
+        # of just the part covered by the arc - however, this might be sufficient
+        # for now
+        self.addCoord(xc - r, yc - r, z)
+        self.addCoord(xc + r, yc + r, z)
         #print "R1 = %s, R2 = %s" % (r1, r2)
         self.motions.append(GcodeArc(self.x, self.y, self.z, x, y, z, xc, yc, clockwise, feed))
     def handleLine(self, x, y, z, feed):
