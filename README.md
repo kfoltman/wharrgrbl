@@ -51,3 +51,4 @@ utilities in future.
 * User buttons for frequently used commands (probing etc.)
 * Grbl setting editor (GUI for $$/$number)
 * Configuration via Python source file, no UI configuration support yet
+* Basic toolpath preview support with built in parser
