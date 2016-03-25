@@ -569,7 +569,7 @@ class CNCJobControl(QtGui.QGroupBox):
         preview = JobPreview()
         mainLayout.addWidget(preview, 0, mainLayout.columnCount(), mainLayout.rowCount(), 1)
         #mainLayout.setColumnStretch(mainLayout.columnCount() - 1, 1)
-        opendlg.resize(opendlg.size().width() + preview.size().width() + 100, opendlg.size().height())
+        opendlg.resize(opendlg.size().width() + preview.size().width() + 10, opendlg.size().height())
         def setJob(filename):
             success = False
             if filename != '':

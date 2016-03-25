@@ -159,7 +159,7 @@ class JobPreview(QtGui.QWidget):
         self.scaleLevel = self.findScaleLevel(min(size.width() / wx, size.height() / wy))
         
     def sizeHint(self):
-        return QtCore.QSize(300, 100)
+        return QtCore.QSize(400, 100)
 
 class JobPreviewWindow(QtGui.QDialog):
     def __init__(self):
