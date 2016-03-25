@@ -1,4 +1,5 @@
 import math
+import time
 from PyQt4 import QtCore, QtGui
 from helpers.gparser import *
 
@@ -12,11 +13,16 @@ class JobPreview(QtGui.QWidget):
         self.x0 = -10
         self.y0 = -10
         self.dragging = False
+        self.toolDiameter = 1
         self.initUI()
     def initUI(self):
         self.setMinimumSize(800, 600)
         self.setMouseTracking(True)
     def paintEvent(self, e):
+        self.millingPen = QtGui.QPen(QtGui.QColor(0, 0, 0), self.toolDiameter * self.getScale())
+        self.millingPen.setCapStyle(QtCore.Qt.RoundCap)
+        self.millingPen.setJoinStyle(QtCore.Qt.RoundJoin)
+
         qp = QtGui.QPainter()
         qp.begin(self)
         qp.setRenderHint(1, True)
@@ -58,7 +64,7 @@ class JobPreview(QtGui.QWidget):
         if m.zs > 0 and m.ze > 0:
             qp.setPen(QtGui.QPen(QtGui.QColor(128, 128, 128), 1))
         else:
-            qp.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 1))
+            qp.setPen(self.millingPen)
     def drawLine(self, qp, m):        
         self.preparePainter(qp, m)
         xs, ys = self.project(m.xs, m.ys, m.zs)
@@ -81,7 +87,7 @@ class JobPreview(QtGui.QWidget):
         else:
             if span < 0:
                 span += 5760
-        qp.drawArc(xc - r, yc - r, 2 * r, 2 * r, sangle, span)
+        qp.drawArc(QtCore.QRectF(xc - r, yc - r, 2 * r - 1, 2 * r - 1), sangle, span)
         
     def project(self, x, y, z):
         scale = self.getScale()
@@ -135,8 +141,9 @@ class JobPreview(QtGui.QWidget):
         self.repaint()
 
     def zoomToBbox(self, pmin, pmax):
-        self.x0, self.y0 = pmin[0], pmin[1]
-        wx, wy = pmax[0] - pmin[0], pmax[1] - pmin[1]
+        # slight margin of one tool radius
+        self.x0, self.y0 = pmin[0] - self.toolDiameter, pmin[1] - self.toolDiameter
+        wx, wy = pmax[0] - pmin[0] + self.toolDiameter * 2.0, pmax[1] - pmin[1] + self.toolDiameter * 2.0
         size = self.size()
         self.scaleLevel = self.findScaleLevel(min(size.width() / wx, size.height() / wy))
 
