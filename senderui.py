@@ -474,7 +474,7 @@ class CNCJobControl(QtGui.QGroupBox):
         self.setTitle("Job control")
         self.grbl = grbl
         self.jobViewer = None
-        self.directory = None
+        self.directory = Global.settings.gcode_directory
         self.initUI()
     def initUI(self):
         layout = QtGui.QVBoxLayout()

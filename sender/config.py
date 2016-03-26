@@ -31,6 +31,7 @@ class Settings:
         ('Set XY=0', 'G91 G10 L20 P1 X0 Y0'),
         ('Retract', 'G90 G0 Z30'),
     ]
+    gcode_directory = "."
     def restore(self, qs):
         def unp(v):
             v, t = v.toDouble()
@@ -41,6 +42,9 @@ class Settings:
         if self.device == "":
             self.device = None
         self.speed, _ = qs.value("serial/speed", 115200).toInt()
+
+        self.gcode_directory = qs.value("directories/gcode_directory", ".").toString()
+
         self.timer_interval, _ = qs.value("serial/timer", 100).toInt()
         self.xysteps = restore_array(qs, "xysteps", self.xysteps, lambda qs: unp(qs.value("step")))
         self.xyspeeds = restore_array(qs, "xyspeeds", self.xyspeeds, lambda qs: unp(qs.value("speed")))
@@ -48,6 +52,7 @@ class Settings:
         self.zspeeds = restore_array(qs, "zspeeds", self.zspeeds, lambda qs: unp(qs.value("speed")))
         self.macros = restore_array(qs, "macros", self.macros, restoremacro)
     def store(self, qs):
+        qs.setValue("directories/gcode_directory", self.gcode_directory)
         qs.setValue("serial/device", self.device or "")
         qs.setValue("serial/speed", self.speed)
         qs.setValue("serial/timer", self.timer_interval)

@@ -92,6 +92,7 @@ class AppConfigDialog(QtGui.QDialog):
         self.comboPorts = QtGui.QComboBox()
         self.comboPorts.setModel(self.comPorts)
         self.labelPortName = QtGui.QLabel()
+        self.gcodeDirectory = QtGui.QLineEdit()
         buttons = QtGui.QHBoxLayout()
         button = QtGui.QPushButton("Cancel")
         button.clicked.connect(self.reject)
@@ -103,10 +104,12 @@ class AppConfigDialog(QtGui.QDialog):
         
         layout.addRow("Serial port", self.comboPorts)
         layout.addRow("Description", self.labelPortName)
+        layout.addRow("G-Code directory", self.gcodeDirectory)
         layout.addRow(buttons)
         self.setLayout(layout)
         self.comboPorts.activated.connect(self.updatePortName)
         self.updatePortName(self.defaultDeviceIndex)
+        self.gcodeDirectory.setText(Global.settings.gcode_directory)
     def updatePortName(self, i):
         self.labelPortName.setText("%s" % self.comPorts.data(self.comPorts.index(i, 1)).toString())
     def showEvent(self, e):
@@ -114,4 +117,5 @@ class AppConfigDialog(QtGui.QDialog):
         #self.add(self.tableView)
         pass
     def save(self):
+        Global.settings.gcode_directory = self.gcodeDirectory.text()
         Global.settings.save()
