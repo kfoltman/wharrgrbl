@@ -474,6 +474,7 @@ class CNCJobControl(QtGui.QGroupBox):
         self.setTitle("Job control")
         self.grbl = grbl
         self.jobViewer = None
+        self.directory = None
         self.initUI()
     def initUI(self):
         layout = QtGui.QVBoxLayout()
@@ -581,8 +582,11 @@ class CNCJobControl(QtGui.QGroupBox):
                     pass
             if not success:
                 preview.setFromList([])
+        if self.directory is not None:
+            opendlg.setDirectory(self.directory)
         opendlg.currentChanged.connect(setJob)
         if opendlg.exec_():
+            self.directory = opendlg.directory().absolutePath()
             fnames = opendlg.selectedFiles()
             if len(fnames) == 1:
                 self.loadFile(fnames[0])
