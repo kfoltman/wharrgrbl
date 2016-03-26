@@ -93,6 +93,8 @@ class AppConfigDialog(QtGui.QDialog):
         self.comboPorts.setModel(self.comPorts)
         self.labelPortName = QtGui.QLabel()
         self.gcodeDirectory = QtGui.QLineEdit()
+        self.gcodeDirectoryButton = QtGui.QPushButton("Select")
+        self.gcodeDirectoryButton.clicked.connect(self.selectGcodeDirectory)
         buttons = QtGui.QHBoxLayout()
         button = QtGui.QPushButton("Cancel")
         button.clicked.connect(self.reject)
@@ -102,14 +104,22 @@ class AppConfigDialog(QtGui.QDialog):
         button.clicked.connect(self.accept)
         buttons.addWidget(button)
         
+        gcodeDirectoryLayout = QtGui.QHBoxLayout()
+        gcodeDirectoryLayout.addWidget(self.gcodeDirectory)
+        gcodeDirectoryLayout.addWidget(self.gcodeDirectoryButton)
+        
         layout.addRow("Serial port", self.comboPorts)
         layout.addRow("Description", self.labelPortName)
-        layout.addRow("G-Code directory", self.gcodeDirectory)
+        layout.addRow("G-Code directory", gcodeDirectoryLayout)
         layout.addRow(buttons)
         self.setLayout(layout)
         self.comboPorts.activated.connect(self.updatePortName)
         self.updatePortName(self.defaultDeviceIndex)
         self.gcodeDirectory.setText(Global.settings.gcode_directory)
+    def selectGcodeDirectory(self):
+        newdir = QtGui.QFileDialog.getExistingDirectory(self, "Select G-Code directory", self.gcodeDirectory.text())
+        if newdir != "":
+            self.gcodeDirectory.setText(newdir)
     def updatePortName(self, i):
         self.labelPortName.setText("%s" % self.comPorts.data(self.comPorts.index(i, 1)).toString())
     def showEvent(self, e):
