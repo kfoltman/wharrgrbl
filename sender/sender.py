@@ -114,6 +114,7 @@ class GrblStateMachine:
         if self.banner_time is not None and inp.startswith("Grbl "):
             self.banner_time = None
             self.outqueue[:] = []
+            self.position_queries = 0
             return True
         if self.banner_time is not None:
             if inp != '':
