@@ -72,19 +72,23 @@ class SerialLineReader:
                 return line
             else:
                 return None
+    def close(self):
+        if self.ser is not None:
+            self.ser.close()
 
 class GrblStateMachine:
     def __init__(self, *args, **kwargs):
         self.reader = SerialLineReader(*args, **kwargs)
         self.position_queries = 0
         self.last_status = 0
-        self.wait_for_banner()
-    def wait_for_banner(self):
+        self.last_cmd = None
+        self.outqueue = []
+        self.wait_for_banner(True)
+    def wait_for_banner(self, first):
         self.banner_time = time.time()
         self.sent_status_request = False
-        self.outqueue = []
         self.maxbytes = 80
-        self.process_cooked_status('Connecting', {})
+        self.process_cooked_status('Connecting' if first else 'Resetting', {})
     def send_line(self, line, context = None):
         if self.banner_time is not None:
             return "Device has not reported yet"
@@ -96,15 +100,24 @@ class GrblStateMachine:
         self.outqueue.append((line, context))
         self.reader.writeln(line)
     def handle_line(self, inp):
-        if self.banner_time is not None and inp.find('Grbl') != -1:
-            self.banner_time = None
-            return True
         if inp.startswith('<') and inp.endswith('>'):
-            self.banner_time = None
             self.position_queries -= 1
             self.process_status(inp)
             return True
+        if inp[0:7] == 'ALARM: ':
+            print "Outqueue = %s, last_cmd = %s" % (repr(self.outqueue), repr(self.last_cmd))
+            if len(self.outqueue):
+                self.alarm(self.outqueue[0][0], self.outqueue[0][1], inp[7:])
+            else:
+                self.alarm(self.last_cmd[0], self.last_cmd[1], inp[7:])
+            return True
+        if self.banner_time is not None and inp.startswith("Grbl "):
+            self.banner_time = None
+            self.outqueue[:] = []
+            return True
         if self.banner_time is not None:
+            if inp != '':
+                print "(ignore line garbage, banner time = %s)" % self.banner_time
             # ignore line garbage
             return True
         if inp.startswith('error:'):
@@ -112,13 +125,12 @@ class GrblStateMachine:
             self.error(self.outqueue[0][0], self.outqueue[0][1], inp[7:])
             self.outqueue.pop(0)
             return True
+        if inp == '':
+            return True
         if inp == 'ok':
             print "Pop: %s" % (self.outqueue[0], )
             self.confirm(*self.outqueue[0])
-            self.outqueue.pop(0)
-            return True
-        if inp[0:7] == 'ALARM: ':
-            self.alarm(self.outqueue[0][0], self.outqueue[0][1], inp[7:])
+            self.last_cmd = self.outqueue.pop(0)
             return True
         if inp[0] == '[' and inp[-1] == ']':
             if ':' in inp:
@@ -199,7 +211,7 @@ class GrblStateMachine:
         self.reader.write('~')
     def soft_reset(self):
         self.reader.write('\x18')
-        self.wait_for_banner()
+        self.wait_for_banner(False)
     def close(self):
         self.reader.close()
         self.reader = None

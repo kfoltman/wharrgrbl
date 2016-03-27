@@ -9,165 +9,11 @@ from sender.jobviewer import *
 from sender.config import Global
 from sender.config_window import *
 from sender.cmdlist import *
+from sender.sender_thread import *
 
 class CNCApplication(QtGui.QApplication):
     pass
         
-class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
-    status = QtCore.pyqtSignal([])
-    line_received = QtCore.pyqtSignal([str])
-    def __init__(self, history_model, config_model, *args, **kwargs):
-        QtCore.QObject.__init__(self)
-        self.config_model = config_model
-        self.history_model = history_model
-        self.job_model = None
-        self.current_status = ('Initialized', {}, '', None)
-        sender.GrblStateMachine.__init__(self, Global.settings.device, Global.settings.speed)
-    def handle_line(self, line):
-        if not (line.startswith('<') and line.endswith('>')):
-            self.line_received.emit(line)
-        return sender.GrblStateMachine.handle_line(self, line)
-    def process_cooked_status(self, mode, args):
-        extra = self.current_status[3]
-        if mode != self.current_status[0]:
-            extra = None
-        self.current_status = (mode, args, self.current_status[2], extra)
-        self.status.emit()
-    def get_status(self):
-        return self.current_status
-    def send_line(self, line):
-        self.history_model.addCommand(line)
-    def confirm(self, line, context):
-        context.set_status('Confirmed')
-    def alarm(self, line, context, message):
-        self.current_status = ('Alarm', self.current_status[1], self.current_status[2], message)
-    def error(self, line, context, error):
-        context.set_status(error)
-    def handle_variable_value(self, var, value, comment):
-        self.config_model.handleVariableValue(var, value, comment)
-    def set_comment(self, comment):
-        cs = self.current_status
-        self.current_status = (cs[0], cs[1], comment, cs[3])
-    def prepare(self, line):
-        line = line.strip()
-        if '(' in line or ';' in line:
-            is_comment = False
-            is_siemens_comment = False
-            line2 = ''
-            comment = None
-            for item in re.split('\((.*?)\)', line):
-                if is_siemens_comment:
-                    if is_comment:
-                        comment += "(%s)" % item
-                    else:
-                        comment += item
-                else:
-                    if not is_comment:
-                        sc = item.find(';')
-                        if sc > 0:
-                            comment = item[sc + 1:]
-                            is_siemens_comment = True
-                            line2 += item[0:sc]
-                        else:
-                            line2 += item
-                    else:
-                        comment = item
-                is_comment = not is_comment
-            line = line2
-            if comment is not None:
-                self.set_comment(comment)
-        return line
-    def try_pull(self):
-        while True:
-            cmd = None
-            if self.job_model is not None and self.job_model.running:
-                cmd = self.job_model.getNextCommand()
-            if cmd is None:
-                cmd = self.history_model.getNextCommand()
-            if cmd is None:
-                return
-            command = self.prepare(cmd.command)
-            if command == '':
-                cmd.set_status("Empty - Ignored")
-                return
-            error = sender.GrblStateMachine.send_line(self, command, cmd)
-            if error is not None:
-                cmd.rollback()
-                return
-            else:
-                cmd.set_status("Sent")
-    def set_job(self, job):
-        self.job_model = job
-
-class GrblInterface(QtCore.QThread):
-    status = QtCore.pyqtSignal([])
-    # signal: line has been received
-    line_received = QtCore.pyqtSignal([str])
-    # internal
-    line_sent = QtCore.pyqtSignal([str])
-    def __init__(self):
-        QtCore.QObject.__init__(self)
-        self.grbl = None
-        self.job = None
-        self.history = GcodeJobModel()
-        self.config_model = GrblConfigModel(self)
-        self.exiting = False
-        self.out_queue = []
-        self.line_sent.connect(self.onLineSent)
-        self.start()
-    def __del__(self):
-        self.exiting = True
-        self.wait()
-    def run(self):
-        while not self.exiting:
-            if self.grbl is not None:
-                if len(self.out_queue):
-                    self.grbl.send_line(self.out_queue.pop(0))
-                self.grbl.ask_for_status_if_idle()
-                while self.grbl.handle_input():
-                    pass
-                self.grbl.try_pull()
-            else:
-                self.onStatus()
-            time.sleep(0.01)
-    def connectToGrbl(self):
-        self.grbl = GrblStateMachineWithSignals(self.history, self.config_model)
-        self.grbl.status.connect(self.onStatus)
-        self.grbl.line_received.connect(self.onLineReceived)
-        self.grbl.set_job(self.job)
-    def disconnectFromGrbl(self):
-        if self.grbl is not None:
-            self.grbl.close()
-        self.grbl = None
-    def getStatus(self):
-        if self.grbl:
-            return self.grbl.get_status()
-        else:
-            return ('Not connected', {}, '', None)
-    def onStatus(self):
-        self.status.emit()
-    def onLineReceived(self, line):
-        self.line_received.emit(line)
-    def onLineSent(self, line):
-        self.out_queue.append(str(line))
-    def sendLine(self, line):
-        if self.grbl is not None:
-            self.line_sent.emit(line)
-        else:
-            raise ValueError("connection not established")
-    def setJob(self, job):
-        self.job = job
-        if self.grbl is not None:
-            self.grbl.set_job(job)
-    def canAcceptCommands(self, mode):
-        return mode not in ['Home', 'Alarm']
-    def isRunningAJob(self):
-        return (self.job is not None) and self.job.running
-    def isJobPaused(self):
-        return (self.job is not None) and self.job.isPaused()
-    def isJobCancellable(self):
-        return (self.job is not None) and self.job.isCancellable()
-
 class CNCJogger(QtGui.QGroupBox):
     steps_changed = QtCore.pyqtSignal([])
     def __init__(self, grbl):
@@ -404,7 +250,6 @@ class CNCPendant(QtGui.QGroupBox):
         self.setLayout(grid)
 
     def zeroAxis(self, axis):
-        print "Zero axis %s" % axis
         self.grbl.sendLine('G90 G10 L20 P0 %s0' % axis)
         
     def onTableDataChanged(self, topleft, bottomright):
@@ -425,17 +270,21 @@ class CNCPendant(QtGui.QGroupBox):
             self.grbl.sendLine(cmd)
         self.cmdWidget.setText('')
     def updateStatusWidgets(self, mode, args, last_comment, extra):
+        isConnected = self.grbl.isConnected()
+        canAcceptCommands = isConnected and self.grbl.canAcceptCommands(mode) and not self.grbl.isRunningAJob()
         fmt = "%0.3f"
-        self.killAlarmButton.setEnabled(mode == "Alarm")
+        self.resetButton.setEnabled(isConnected and mode != "Alarm")
+        self.killAlarmButton.setEnabled(isConnected and mode == "Alarm")
+        self.cmdButton.setEnabled(canAcceptCommands)
+        for i in range(self.macros.count()):
+            self.macros.itemAt(i).widget().setEnabled(canAcceptCommands)
         if extra is not None:
             mode = "%s - %s" % (mode, extra)
         self.modeWidget.setText(mode)
         self.commentWidget.setText(last_comment)
-        self.cmdButton.setEnabled(self.grbl.canAcceptCommands(mode) and not self.grbl.isRunningAJob())
         self.jogger.setEnabled(self.grbl.canAcceptCommands(mode))
-        self.holdButton.setEnabled(mode not in ["Hold", "Alarm"])
+        self.holdButton.setEnabled(canAcceptCommands)
         self.resumeButton.setEnabled(mode == "Hold")
-        self.resetButton.setEnabled(mode != "Alarm")
         def update(axis, pos):
             for i, a in enumerate(['X', 'Y', 'Z']):
                 axis[a].setText(fmt % pos[i])
@@ -640,6 +489,9 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         prefs = AppConfigDialog()
         if prefs.exec_():
             prefs.save()
+    def disconnect(self):
+        self.grbl.disconnectFromGrbl()
+        self.grbl.shutdown()
 
 def main():    
     app = CNCApplication(sys.argv)
@@ -648,7 +500,11 @@ def main():
     if len(sys.argv) > 1:
         w.jobs.loadFile(sys.argv[1])
     w.show()
-    
-    sys.exit(app.exec_())
+    retcode = app.exec_()
+    app = None
+    w.disconnect()
+    w = None
+    if retcode != 0:
+        sys.exit(retcode)
 
 main()
