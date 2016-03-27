@@ -369,14 +369,26 @@ class CNCJobControl(QtGui.QGroupBox):
         job.dataChanged.connect(self.onJobTableDataChanged)    
         self.jobCommands.setModel(job)
         self.jobCommands.scrollTo(job.index(0, 0))
-        self.jobCommands.resizeRowsToContents()
+        rc = job.rowCount(None)
+        if rc < 10000:
+            self.jobCommands.resizeRowsToContents()
+        else:
+            # Do the second best thing - resize first 500 rows
+            for i in xrange(1, 500):
+                self.jobCommands.resizeRowToContents(i)
         self.updateButtons()
     def loadFile(self, fname):
         job = GcodeJobModel()
-        for l in open(fname, "r").readlines():
+        f = open(fname, "r")
+        accum = []
+        for l in f:
             l = l.strip()
             if l != '':
-                job.addCommand(l)
+                if len(accum) >= 100:
+                    job.addCommands(accum)
+                    accum = []
+                accum.append(l)
+        job.addCommands(accum)
         self.grbl.setJob(job)
         self.setJob(job)
     def onJobRun(self):

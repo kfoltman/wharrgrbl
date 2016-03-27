@@ -41,17 +41,23 @@ class GcodeJobModel(QtCore.QAbstractTableModel):
         #if orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
         #    return "%d" % (1 + section)
     def rowCount(self, parent):
-        if parent.isValid():
+        if parent is not None and parent.isValid():
             return 0
         return len(self.commands)
     def columnCount(self, parent):
         return 2
     def addCommand(self, cmd):
-        context = GcodeExecCommand(self, cmd, "Queued", len(self.commands))
-        self.beginInsertRows(QtCore.QModelIndex(), context.pos, context.pos)
-        self.commands.append(context)
+        return self.addCommands([cmd])[0]
+    def addCommands(self, cmds):
+        pos = len(self.commands)
+        contexts = []
+        self.beginInsertRows(QtCore.QModelIndex(), pos, pos + len(cmds) - 1)
+        for i, cmd in enumerate(cmds):
+            context = GcodeExecCommand(self, cmd, "Queued", pos + i)
+            self.commands.append(context)
+            contexts.append(context)
         self.endInsertRows()
-        return context
+        return contexts
     def flags(self, index):
         if index.column() == 0:
             return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled

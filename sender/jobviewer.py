@@ -161,7 +161,11 @@ class JobPreview(QtGui.QWidget):
             self.repaint()
         
     def loadFromFile(self, fileName):
-        self.setFromList([l.strip() for l in open(fileName, "r").readlines()])
+        if os.stat(fileName).st_size >= 1048576:
+            # File too large, no preview available
+            self.setFromList([])
+        else:
+            self.setFromList([l.strip() for l in open(fileName, "r").readlines()])
     
     def setFromList(self, cmds):
         rec = TestGcodeReceiver()
