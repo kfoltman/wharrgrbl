@@ -421,6 +421,7 @@ class CNCJobControl(QtGui.QGroupBox):
     def onJobView(self):
         if self.jobViewer is None:
             self.jobViewer = JobPreviewWindow()
+        self.jobViewer.setGrbl(self.grbl)
         self.jobViewer.setJob(self.grbl.job)
         self.jobViewer.show()
     def onFileOpen(self):

@@ -2,10 +2,14 @@ import math
 import time
 from PyQt4 import QtCore, QtGui
 from helpers.gparser import *
+from config import Global
 
 class JobPreview(QtGui.QWidget):
+    pointerCoords = QtCore.pyqtSignal([float, float])
+    clicked = QtCore.pyqtSignal([float, float])
     def __init__(self):
         QtGui.QWidget.__init__(self)
+        self.actionMode = 0
         self.job = None
         self.motions = None
         self.resetView()
@@ -15,6 +19,7 @@ class JobPreview(QtGui.QWidget):
         self.rapidPath = None
         self.millingPath = None
         self.translation = QtCore.QPointF(0, 0)
+        self.minZ = 0
         self.initUI()
     def createPainters(self):
         self.pastItemHash = {}
@@ -35,8 +40,9 @@ class JobPreview(QtGui.QWidget):
 
     def initUI(self):
         self.setMouseTracking(True)
-    def paintEvent(self, e):
+        self.updateCursor()
 
+    def paintEvent(self, e):
         qp = QtGui.QPainter()
         qp.begin(self)
         qp.setRenderHint(1, True)
@@ -141,10 +147,13 @@ class JobPreview(QtGui.QWidget):
         self.y0 = ym - (h - pt.y()) / scale
 
     def mousePressEvent(self, e):
-        self.start_point = e.posF()
-        self.prev_point = e.posF()
-        self.start_origin = (self.x0, self.y0)
-        self.dragging = True
+        if self.actionMode == 0:
+            self.start_point = e.posF()
+            self.prev_point = e.posF()
+            self.start_origin = (self.x0, self.y0)
+            self.dragging = True
+        else:
+            self.clicked.emit(self.x0 + e.posF().x() / self.getScale(), self.y0 + (self.rect().height() - e.posF().y()) / self.getScale())
         
     def mouseReleaseEvent(self, e):
         if self.dragging:
@@ -159,6 +168,7 @@ class JobPreview(QtGui.QWidget):
             self.translation -= e.posF() - self.prev_point
             self.prev_point = e.posF()
             self.repaint()
+        self.pointerCoords.emit(self.x0 + e.posF().x() / self.getScale(), self.y0 + (self.rect().height() - e.posF().y()) / self.getScale())
         
     def loadFromFile(self, fileName):
         if os.stat(fileName).st_size >= 1048576:
@@ -173,6 +183,7 @@ class JobPreview(QtGui.QWidget):
         for cmd in cmds:
             gs.handle_line(cmd)
         self.motions = rec.motions
+        self.minZ = rec.bbox_min[2]
         self.zoomToBbox(rec.bbox_min, rec.bbox_max)
         self.createPainters()
         self.repaint()
@@ -198,6 +209,21 @@ class JobPreview(QtGui.QWidget):
         wx, wy = pmax[0] - pmin[0] + self.toolDiameter * 2.0, pmax[1] - pmin[1] + self.toolDiameter * 2.0
         size = self.size()
         self.scaleLevel = self.findScaleLevel(min(size.width() / wx, size.height() / wy))
+    
+    def updateCursor(self):
+        if self.actionMode == 0:
+            self.setCursor(QtCore.Qt.OpenHandCursor)
+        elif self.actionMode == 1:
+            self.setCursor(QtCore.Qt.CrossCursor)
+
+    def setActionMode(self, mode):
+        self.actionMode = mode
+        self.updateCursor()
+
+    def setToolDiameter(self, newDia):
+        self.toolDiameter = newDia
+        self.createPainters()
+        self.repaint()
         
     def sizeHint(self):
         return QtCore.QSize(400, 100)
@@ -207,12 +233,74 @@ class JobPreview(QtGui.QWidget):
 class JobPreviewWindow(QtGui.QDialog):
     def __init__(self):
         QtGui.QDialog.__init__(self)
+        self.grbl = None
         self.initUI()
     def initUI(self):
-        self.layout = QtGui.QVBoxLayout()
+        def boldLabel(text):
+            l = QtGui.QLabel(text)
+            l.setFont(Global.fonts.mediumBoldFont)
+            return l
+        def insetLabel():
+            l = QtGui.QLabel()
+            l.setFont(Global.fonts.mediumFont)
+            l.setMinimumWidth(80)
+            l.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Sunken)
+            l.setAlignment(QtCore.Qt.AlignRight)
+            return l
+        self.actionButtons = {}
+        self.setWindowTitle("Job preview")
+
         self.preview = JobPreview()
+
+        self.layout = QtGui.QVBoxLayout()
+        self.legendLayout = QtGui.QHBoxLayout()
+        self.xLabel = insetLabel()
+        self.yLabel = insetLabel()
+        self.zLabel = insetLabel()
+        self.toolDiaEdit = QtGui.QLineEdit()
+        self.legendLayout.addWidget(boldLabel("X"), 0)
+        self.legendLayout.addWidget(self.xLabel, 0)
+        self.legendLayout.addWidget(boldLabel("Y"), 0)
+        self.legendLayout.addWidget(self.yLabel, 0)
+        self.legendLayout.addWidget(boldLabel("Min Z"), 0)
+        self.legendLayout.addWidget(self.zLabel, 0)
+        self.legendLayout.addWidget(QtGui.QLabel("Tool diameter"), 0)
+        self.legendLayout.addWidget(self.toolDiaEdit, 0)
+        self.legendLayout.addStretch(1)
+        self.legendLayout.addWidget(self.createActionButton("&Pan", 0), 0)
+        self.legendLayout.addWidget(self.createActionButton("&Rapid to", 1), 0)
+        self.preview.pointerCoords.connect(self.onCoordsUpdated)
+        self.preview.clicked.connect(self.onPreviewClicked)
         self.preview.setMinimumSize(800, 600)
         self.layout.addWidget(self.preview)
+        self.layout.addLayout(self.legendLayout)
         self.setLayout(self.layout)
+        self.toolDiaEdit.setText("%0.2f" % self.preview.toolDiameter)
+        self.toolDiaEdit.textEdited.connect(self.onTextEdited)
+    def createActionButton(self, text, mode):
+        b = QtGui.QRadioButton(text)
+        b.setChecked(mode == self.preview.actionMode)
+        b.clicked.connect(lambda: self.preview.setActionMode(mode))
+        self.actionButtons[mode] = b
+        return b
+    def setGrbl(self, grbl):
+        self.grbl = grbl
     def setJob(self, job):
         self.preview.setJob(job)
+        if job:
+            self.zLabel.setText("%0.3f" % self.preview.minZ)
+        else:
+            self.zLabel.setText("")
+    def onCoordsUpdated(self, x, y):
+        self.xLabel.setText("%0.3f" % x)
+        self.yLabel.setText("%0.3f" % y)
+    def onPreviewClicked(self, x, y):
+        if self.preview.actionMode == 1:
+            self.grbl.sendLine("G90 G0 X%0.3f Y%0.3f" %  (x, y))
+    def onTextEdited(self, newText):
+        try:
+            newDia = float(newText)
+            if newDia >= 0.01 and newDia < 100:
+                self.preview.setToolDiameter(newDia)
+        except ValueError as e:
+            pass
