@@ -1,10 +1,11 @@
 import math
+import os
 import time
 from PyQt4 import QtCore, QtGui
 from helpers.gparser import *
 from config import Global
 
-class JobPreview(QtGui.QWidget):
+class PreviewBase(QtGui.QWidget):
     pointerCoords = QtCore.pyqtSignal([float, float])
     clicked = QtCore.pyqtSignal([float, float])
     def __init__(self):
@@ -21,22 +22,6 @@ class JobPreview(QtGui.QWidget):
         self.translation = QtCore.QPointF(0, 0)
         self.minZ = 0
         self.initUI()
-    def createPainters(self):
-        self.pastItemHash = {}
-        self.translation = QtCore.QPointF(0, 0)
-        self.millingPen = QtGui.QPen(QtGui.QColor(0, 0, 0), self.toolDiameter * self.getScale())
-        self.millingPen.setCapStyle(QtCore.Qt.RoundCap)
-        self.millingPen.setJoinStyle(QtCore.Qt.RoundJoin)
-        self.rapidPen = QtGui.QPen(QtGui.QColor(128, 128, 128), 1)
-        self.rapidPath = QtGui.QGraphicsScene()
-        self.millingPath = QtGui.QGraphicsScene()
-
-        if self.motions is not None:
-            for m in self.motions:
-                if type(m) is GcodeLine:
-                    self.drawLine(m)
-                elif type(m) is GcodeArc:
-                    self.drawArc(m)
 
     def initUI(self):
         self.setMouseTracking(True)
@@ -73,18 +58,9 @@ class JobPreview(QtGui.QWidget):
         qp.drawLine(0, my, self.size().width(), my)
         qp.drawLine(mx, 0, mx, self.size().height())
 
-        trect = QtCore.QRectF(self.rect()).translated(self.translation)
-        if self.rapidPath is not None:
-            self.rapidPath.render(qp, QtCore.QRectF(self.rect()), trect)
-        if self.millingPath is not None:
-            self.millingPath.render(qp, QtCore.QRectF(self.rect()), trect)
-
+        self.renderDrawing(qp)
         qp.end()
-    def getPainterPath(self, m):
-        if m.zs > 0 and m.ze > 0:
-            return self.rapidPath, self.rapidPen
-        else:
-            return self.millingPath, self.millingPen
+        
     def drawLine(self, m):
         qp, pen = self.getPainterPath(m)
         xs, ys = self.project(m.xs, m.ys, m.zs)
@@ -102,8 +78,6 @@ class JobPreview(QtGui.QWidget):
         sangle = math.atan2(m.ys - m.yc, m.xs - m.xc) * 360 / (2 * math.pi)
         eangle = math.atan2(m.ye - m.yc, m.xe - m.xc) * 360 / (2 * math.pi)
         # XXXKF This is limited to XY arcs
-        xc, yc = self.project(m.xc, m.yc, m.zs)
-        r *= self.getScale()
         span = eangle - sangle
         if m.clockwise:
             if span > 0:
@@ -111,13 +85,17 @@ class JobPreview(QtGui.QWidget):
         else:
             if span < 0:
                 span += 360
-        key = "A%f,%f,%f,%f" % (xc, yc, sangle, span)
+        self.drawArcImpl(m.xc, m.yc, m.zs, m.ze, r, sangle, span, qp, pen)
+    def drawArcImpl(self, xc, yc, zs, ze, r, sangle, span, qp, pen):
+        xc, yc = self.project(xc, yc, zs)
+        r *= self.getScale()
+        key = "A%f,%f,%f,%f,%f" % (xc, yc, r, sangle, span)
         if key in self.pastItemHash:
             return
         self.pastItemHash[key] = qp
         arc = QtGui.QPainterPath()
-        arc.arcMoveTo(QtCore.QRectF(xc - r, yc - r, 2 * r - 1, 2 * r - 1), sangle)
-        arc.arcTo(QtCore.QRectF(xc - r, yc - r, 2 * r - 1, 2 * r - 1), sangle, span)
+        arc.arcMoveTo(QtCore.QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle)
+        arc.arcTo(QtCore.QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle, span)
         qp.addPath(arc, pen)
         
     def project(self, x, y, z):
@@ -183,8 +161,11 @@ class JobPreview(QtGui.QWidget):
         for cmd in cmds:
             gs.handle_line(cmd)
         self.motions = rec.motions
-        self.minZ = rec.bbox_min[2]
-        self.zoomToBbox(rec.bbox_min, rec.bbox_max)
+        if rec.bbox_min is not None:
+            self.minZ = rec.bbox_min[2]
+            self.zoomToBbox(rec.bbox_min, rec.bbox_max)
+        else:
+            self.minZ = 0
         self.createPainters()
         self.repaint()
     
@@ -229,6 +210,41 @@ class JobPreview(QtGui.QWidget):
         return QtCore.QSize(400, 100)
     def resizeEvent(self, e):
         self.createPainters()
+        
+    def initPainters(self):
+        self.pastItemHash = {}
+        self.translation = QtCore.QPointF(0, 0)
+
+class JobPreview(PreviewBase):
+    def createPainters(self):
+        self.initPainters()
+        self.millingPen = QtGui.QPen(QtGui.QColor(0, 0, 0), self.toolDiameter * self.getScale())
+        self.millingPen.setCapStyle(QtCore.Qt.RoundCap)
+        self.millingPen.setJoinStyle(QtCore.Qt.RoundJoin)
+        self.rapidPen = QtGui.QPen(QtGui.QColor(128, 128, 128), 1)
+
+        self.rapidPath = QtGui.QGraphicsScene()
+        self.millingPath = QtGui.QGraphicsScene()
+
+        if self.motions is not None:
+            for m in self.motions:
+                if type(m) is GcodeLine:
+                    self.drawLine(m)
+                elif type(m) is GcodeArc:
+                    self.drawArc(m)
+
+    def getPainterPath(self, m):
+        if m.zs > 0 and m.ze > 0:
+            return self.rapidPath, self.rapidPen
+        else:
+            return self.millingPath, self.millingPen
+
+    def renderDrawing(self, qp):
+        trect = QtCore.QRectF(self.rect()).translated(self.translation)
+        if self.rapidPath is not None:
+            self.rapidPath.render(qp, QtCore.QRectF(self.rect()), trect)
+        if self.millingPath is not None:
+            self.millingPath.render(qp, QtCore.QRectF(self.rect()), trect)
 
 class JobPreviewWindow(QtGui.QDialog):
     def __init__(self):
