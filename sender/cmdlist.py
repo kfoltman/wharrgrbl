@@ -22,6 +22,8 @@ class GcodeJobModel(QtCore.QAbstractTableModel):
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
         self.commands = []
+        self.cur_commands = self.commands
+        self.exec_stack = []
         self.history_pos = 0
         self.running = False
     def data(self, index, role):
@@ -63,15 +65,19 @@ class GcodeJobModel(QtCore.QAbstractTableModel):
             return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
         return QtCore.Qt.NoItemFlags
     def getNextCommand(self):
-        if self.history_pos >= len(self.commands):
-            self.running = False
-            return None
-        cmd = self.commands[self.history_pos]
+        while self.history_pos >= len(self.cur_commands):
+            if len(self.exec_stack) > 0:
+                self.history_pos, self.cur_commands = self.exec_stack.pop()
+            else:
+                self.running = False
+                return None
+        cmd = self.commands[self.history_pos]        
         self.history_pos += 1
         return cmd
     def rollback(self):
         self.history_pos -= 1
     def rewind(self):
+        self.exec_stack = []
         self.history_pos = 0
         for cmd in self.commands:
             cmd.set_status("Queued", False)
@@ -90,4 +96,4 @@ class GcodeJobModel(QtCore.QAbstractTableModel):
     def isPaused(self):
         return not self.running and self.history_pos > 0 and self.history_pos < len(self.commands)
     def isCancellable(self):
-        return self.history_pos > 0 and self.history_pos < len(self.commands)
+        return len(self.exec_stack) or (self.history_pos > 0 and self.history_pos < len(self.commands))
