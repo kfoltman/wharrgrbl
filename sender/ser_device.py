@@ -32,7 +32,6 @@ class SerialDeviceFinder:
         
 class ReaderBase:
     def writeln(self, data):
-        print "Send: %s" % data
         self.write(data + "\n")
     def poll(self):
         try:
