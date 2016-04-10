@@ -125,12 +125,13 @@ class PreviewBase(QtGui.QWidget):
         self.y0 = ym - (h - pt.y()) / scale
 
     def mousePressEvent(self, e):
-        if self.actionMode == 0:
+        b = e.button()
+        if (b == QtCore.Qt.LeftButton and self.actionMode == 0) or b == QtCore.Qt.RightButton:
             self.start_point = e.posF()
             self.prev_point = e.posF()
             self.start_origin = (self.x0, self.y0)
             self.dragging = True
-        else:
+        elif b == QtCore.Qt.LeftButton:
             self.clicked.emit(self.x0 + e.posF().x() / self.getScale(), self.y0 + (self.rect().height() - e.posF().y()) / self.getScale())
         
     def mouseReleaseEvent(self, e):
@@ -216,12 +217,16 @@ class PreviewBase(QtGui.QWidget):
         self.translation = QtCore.QPointF(0, 0)
 
 class JobPreview(PreviewBase):
+    def __init__(self):
+        PreviewBase.__init__(self)
+        self.spindlePos = None
     def createPainters(self):
         self.initPainters()
         self.millingPen = QtGui.QPen(QtGui.QColor(0, 0, 0), self.toolDiameter * self.getScale())
         self.millingPen.setCapStyle(QtCore.Qt.RoundCap)
         self.millingPen.setJoinStyle(QtCore.Qt.RoundJoin)
         self.rapidPen = QtGui.QPen(QtGui.QColor(128, 128, 128), 1)
+        self.cursorPen = QtGui.QPen(QtGui.QColor(0, 0, 192), 0)
 
         self.rapidPath = QtGui.QGraphicsScene()
         self.millingPath = QtGui.QGraphicsScene()
@@ -245,6 +250,11 @@ class JobPreview(PreviewBase):
             self.rapidPath.render(qp, QtCore.QRectF(self.rect()), trect)
         if self.millingPath is not None:
             self.millingPath.render(qp, QtCore.QRectF(self.rect()), trect)
+        if self.spindlePos is not None:
+            x, y = self.project(*self.spindlePos)
+            qp.setPen(self.cursorPen)
+            qp.drawLine(x - 5, y - 5, x + 4, y + 4)
+            qp.drawLine(x - 5, y + 5, x + 4, y - 4)
 
 class JobPreviewWindow(QtGui.QDialog):
     def __init__(self):
@@ -313,6 +323,9 @@ class JobPreviewWindow(QtGui.QDialog):
     def onPreviewClicked(self, x, y):
         if self.preview.actionMode == 1:
             self.grbl.sendLine("G90 G0 X%0.3f Y%0.3f" %  (x, y))
+    def onSpindleMoved(self, x, y, z):
+        self.preview.spindlePos = (x, y, z)
+        self.preview.repaint()
     def onTextEdited(self, newText):
         try:
             newDia = float(newText)

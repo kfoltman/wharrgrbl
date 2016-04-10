@@ -495,6 +495,13 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         self.setWindowTitle("KF's GRBL controller")
         self.configDialog = MachineConfigDialog(self.grbl.config_model)
         self.pendant.cmdWidget.setFocus()
+        self.pendant.grbl.status.connect(self.onGrblStatus)
+    def onGrblStatus(self):
+        if self.jobs.jobViewer is not None:
+            status = self.pendant.grbl.getStatus()
+            pos = status[1]
+            if 'WPos' in pos:
+                self.jobs.jobViewer.onSpindleMoved(*pos['WPos'])
     def onMachineConfiguration(self):
         self.grbl.sendLine('$$')
         self.configDialog.show()
