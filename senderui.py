@@ -322,10 +322,12 @@ class CNCJobControl(QtGui.QGroupBox):
         QtGui.QWidget.__init__(self)
         self.setTitle("Job control")
         self.grbl = grbl
+        self.jobFile = None
         self.jobViewer = None
         self.directory = Global.settings.gcode_directory
         self.initUI()
     def initUI(self):
+        self.buttons = {}
         layout = QtGui.QVBoxLayout()
         self.jobCommands = QtGui.QTableView()
         self.jobCommands.setModel(GcodeJobModel())
@@ -334,20 +336,34 @@ class CNCJobControl(QtGui.QGroupBox):
         self.jobCommands.setMinimumWidth(520)
         self.jobCommands.setMinimumHeight(300)
         self.jobCommands.resizeRowsToContents()
+        layout.addLayout(self.initFileArea())
         layout.addWidget(self.jobCommands)
         layout.addLayout(self.initButtons())
         self.setLayout(layout)
         self.updateButtons()
+    def initFileArea(self):
+        area = QtGui.QHBoxLayout()
+        button = QtGui.QPushButton("Load")
+        button.clicked.connect(self.onFileOpen)
+        self.buttons["Load"] = button
+        area.addWidget(button, 0)
+        self.fileLabel = QtGui.QLabel("")
+        self.fileLabel.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Sunken);
+        area.addWidget(self.fileLabel, 1)
+        button = QtGui.QPushButton("Reload")
+        button.clicked.connect(self.onFileReopen)
+        self.buttons["Reload"] = button
+        area.addWidget(button, 0)
+        return area
+
     def initButtons(self):
         buttonList = [
-            ('Load', self.onFileOpen),
             ('Run', self.onJobRun),
             ('Pause', self.onJobPause),
             ('Resume', self.onJobResume),
             ('Cancel', self.onJobCancel),
             ('View', self.onJobView),
         ]
-        self.buttons = {}
         buttons = QtGui.QHBoxLayout()
         for name, func in buttonList:
             button = QtGui.QPushButton(name)
@@ -361,6 +377,7 @@ class CNCJobControl(QtGui.QGroupBox):
         self.jobCommands.repaint()
         self.updateButtons()
     def updateButtons(self):
+        self.buttons['Reload'].setEnabled(self.jobFile is not None)
         self.buttons['Run'].setEnabled(self.grbl.job is not None and not self.grbl.isRunningAJob())
         self.buttons['Pause'].setEnabled(self.grbl.isRunningAJob())
         self.buttons['Resume'].setEnabled(self.grbl.isJobPaused())
@@ -389,6 +406,8 @@ class CNCJobControl(QtGui.QGroupBox):
                     accum = []
                 accum.append(l)
         job.addCommands(accum)
+        self.jobFile = fname
+        self.fileLabel.setText(self.jobFile)
         self.grbl.setJob(job)
         self.setJob(job)
     def onJobRun(self):
@@ -424,10 +443,15 @@ class CNCJobControl(QtGui.QGroupBox):
         self.jobViewer.setGrbl(self.grbl)
         self.jobViewer.setJob(self.grbl.job)
         self.jobViewer.show()
+    def onFileReopen(self):
+        if self.jobFile:
+            self.loadFile(self.jobFile)
     def onFileOpen(self):
         #fname = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
         opendlg = QtGui.QFileDialog(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
         opendlg.setFileMode(QtGui.QFileDialog.ExistingFile)
+        if self.jobFile is not None:
+            opendlg.selectFile(self.jobFile)
         mainLayout = opendlg.layout()
         preview = JobPreview()
         mainLayout.addWidget(preview, 0, mainLayout.columnCount(), mainLayout.rowCount(), 1)
@@ -452,8 +476,6 @@ class CNCJobControl(QtGui.QGroupBox):
             fnames = opendlg.selectedFiles()
             if len(fnames) == 1:
                 self.loadFile(fnames[0])
-
-
 
 class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
     def __init__(self):
