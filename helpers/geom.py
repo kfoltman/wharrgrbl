@@ -2,6 +2,7 @@ import math
 from PyQt4 import QtCore, QtGui
 
 defaultEps = 1e-10
+twopi = 2 * math.pi
 
 def sign(x):
     if x > 0:
@@ -32,7 +33,9 @@ def circ3(x, y, r, a):
 def circ4(x, y, r, a):
     return QtCore.QPointF(x + r * math.cos(a), y + r * math.sin(a))
 def nangle(a):
-    return (a + math.pi) % (2 * math.pi) - math.pi
+    if a > -math.pi and a <= math.pi:
+        return a
+    return (a + math.pi) % twopi - math.pi
 def tang(p1, p2):
     return math.atan2(p2.y() - p1.y(), p2.x() - p1.x())
 def interp(p1, p2, c):
@@ -73,7 +76,7 @@ def test_d2r():
     assert_eqtol(math.sin(d2r(90)), 1)
 def test_r2d():
     assert_eqtol(r2d(0), 0)
-    assert_eqtol(r2d(2 * math.pi), 360)
+    assert_eqtol(r2d(twopi), 360)
 def test_pdist():
     assert_eqtol(pdist(QtCore.QPointF(0, 1), QtCore.QPointF(1, 0)), norm(1, -1))
     assert_eqtol(pdist(QtCore.QPointF(0, 0), QtCore.QPointF(1, 1)), norm(1, 1))

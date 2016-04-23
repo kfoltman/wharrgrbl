@@ -13,6 +13,7 @@ from helpers.geom import *
 class DrawingItem(object):
     def __init__(self):
         self.marked = False
+        self.windings = None
     def setMarked(self, marked):
         self.marked = marked
     def addArrow(self, viewer, center, path, angle):
@@ -24,6 +25,11 @@ class DrawingItem(object):
         da2 = angle - 0.4 + math.pi
         path.addLine(QtCore.QLineF(circ(c, r, -sa), circ(c, r, -da2)), viewer.getPen(self))
         path.addLine(QtCore.QLineF(circ(c, r, -da2), circ(c, r, -da)), viewer.getPen(self))
+    def addDebug(self, path, center):
+        if self.windings:
+            txt = path.addSimpleText("%s" % self.windings)
+            txt.setX(center[0])
+            txt.setY(center[1])
 
 class DrawingLine(DrawingItem):
     def __init__(self, start, end):
@@ -35,6 +41,7 @@ class DrawingLine(DrawingItem):
         start = viewer.project(self.start.x(), self.start.y(), 0)
         end = viewer.project(self.end.x(), self.end.y(), 0)
         center = viewer.project((self.start.x() + self.end.x()) / 2.0, (self.start.y() + self.end.y()) / 2.0, 0)
+        self.addDebug(path, center)
         path.addLine(start[0], start[1], end[0], end[1], viewer.getPen(self))
         if True:
             self.addArrow(viewer, center, path, self.startAngle)
@@ -62,29 +69,18 @@ class DrawingArc(DrawingItem):
     def angdist(self, angle):
         angle -= self.sangle
         if self.span > 0:
-            return angle % (2 * math.pi)
+            return angle % twopi
         else:
-            return ((-angle) % (2 * math.pi))
+            return ((-angle) % twopi)
     def angdistp(self, p):
         return self.angdist(tang(self.centre, p))
     
     def inarc(self, theta):
         theta = nangle(theta)
         if self.span > 0:
-            print theta, self.sangle, self.sangle + self.span
-            if theta < self.sangle:
-                theta += 2 * math.pi
-            if theta > self.sangle + self.span:
-                theta -= 2 * math.pi
-            return theta >= self.sangle and theta <= self.sangle + self.span
+            return (theta - self.sangle) % twopi <= self.span
         if self.span < 0:
-            if theta < self.sangle + self.span:
-                theta += 2 * math.pi
-            if theta > self.sangle:
-                theta -= 2 * math.pi
-            print theta, self.sangle, self.sangle + self.span
-            print theta >= self.sangle + self.span and theta <= self.sangle
-            return theta >= self.sangle + self.span and theta <= self.sangle
+            return (self.sangle - theta) % twopi <= -self.span
         return False
     def inarcp(self, p):
         return self.inarc(tang(self.centre, p))
@@ -117,10 +113,10 @@ class DrawingArc(DrawingItem):
             else:
                 print "No solution exists - bad slopes"
                 return # no solution
-        #if r < 0:
-        #    r = -r
-        #    alpha += math.pi
-        #    beta += math.pi
+        if r < 0:
+            r = -r
+            alpha += math.pi
+            beta += math.pi
         c1 = circ(p1, -r, alpha)
         c2 = circ(p2, -r, beta)
         if pdist(c1, c2) > eps:
@@ -140,6 +136,7 @@ class DrawingArc(DrawingItem):
         if pdist(circ4(xc, yc, r, beta), p2) > eps:
             print "Incorrect calculated p2", p1, p2, xc, yc, r, r2d(alpha), r2d(beta)
             assert False
+        #return DrawingArc(QtCore.QPointF(xc, yc), r, beta, -nangle(beta - alpha))
         return DrawingArc(QtCore.QPointF(xc, yc), r, alpha, nangle(beta - alpha))
     @staticmethod
     def fromangles(centre, radius, startAngle, endAngle, dir):
@@ -154,6 +151,7 @@ class DrawingArc(DrawingItem):
         pp = QtGui.QPainterPath()
         pp.arcMoveTo(QtCore.QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle)
         pp.arcTo(QtCore.QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle, span)
+        self.addDebug(path, circ3(xc, yc, r, -(self.sangle + self.span / 2)))
         if False:
             pp.moveTo(*viewer.project(self.minX(), self.centre.y() - self.radius, 0))
             pp.lineTo(*viewer.project(self.minX(), self.centre.y() + self.radius, 0))
@@ -173,7 +171,7 @@ class DrawingArc(DrawingItem):
             sangle += span
             span = -span
         theta -= sangle
-        theta %= 2 * math.pi
+        theta %= twopi
         if theta < span:
             r = pdist(p, self.centre)
             return abs(r - self.radius)
@@ -193,29 +191,33 @@ def reversed_nodes(nodes):
 def intersections(d1, d2):
     if type(d1) is DrawingLine and type(d2) is DrawingLine:
         p = QtCore.QPointF()
+        # a > 0 -> the d2 crosses d1 right to left
+        a = nangle(d2.startAngle - d1.startAngle)
+        if abs(a) < defaultEps:
+            a = 0
         if d1.toLine().intersect(d2.toLine(), p) == QtCore.QLineF.BoundedIntersection:
-            return [p]
+            return [(p, a)]
         return []
     if type(d1) is DrawingArc and type(d2) is DrawingArc:
         dist = pdist(d1.centre, d2.centre)
-        if dist > d1.radius + d2.radius:
+        if dist > d1.radius + d2.radius or dist == 0:
             return []
         along = (d1.radius + dist - d2.radius) * 0.5
         across2 = d1.radius ** 2 - along ** 2
         if across2 < 0:
             return []
         midpoint = interp(d1.centre, d2.centre, along / dist)
-        if across2 < defaultEps:
-            return [midpoint]
+        #if across2 < defaultEps:
+        #    return [midpoint]
         theta = tang(d2.centre, d1.centre)
         d = circ(qpxy(0, 0), math.sqrt(across2), theta + math.pi / 2)
         p1 = midpoint + d
         p2 = midpoint - d
         pts = []
         if d1.inarcp(p1) and d2.inarcp(p1):
-            pts.append(p1)
-        if d1.inarcp(p2) and d2.inarcp(p2):
-            pts.append(p2)
+            pts.append((p1, None))
+        if p1 != p2 and d1.inarcp(p2) and d2.inarcp(p2):
+            pts.append((p2, None))
         return pts
     if type(d1) is DrawingArc and type(d2) is DrawingLine:
         d1, d2 = d2, d1
@@ -229,19 +231,26 @@ def intersections(d1, d2):
             return []
         third = math.sqrt(d2.radius ** 2 - across ** 2)
         pts = []
+
+        def cangle(p):
+            if d2.span > 0:
+                a = nangle(d1.startAngle - tang(d2.centre, p) + math.pi / 2)
+            else:
+                a = nangle(d1.startAngle - tang(d2.centre, p) - math.pi / 2)
+            return 0.0 if abs(a) < defaultEps else a
         if along + third >= 0 and along + third <= line.length():
             p = interp(line.p1(), line.p2(), (along + third) * 1.0 / line.length())
             if d2.inarcp(p):
-                pts.append(p)
+                pts.append((p, cangle(p)))
         if along - third >= 0 and along - third <= line.length() and abs(third) > 0:
             p = interp(line.p1(), line.p2(), (along - third) * 1.0 / line.length())
-            if d2.inarcp(p):
-                pts.append(p)
-        print pts
+            if d2.inarcp(p) and not (len(pts) and pts[0] == p):
+                pts.append((p, cangle(p)))
         return pts
     return []
         
 #print intersections(DrawingLine(qpxy(0, 0), qpxy(30, 0)), DrawingArc(qpxy(15, 0), 3, 0, math.pi / 2))
+#print intersections(DrawingArc(qpxy(0, 0), 10, 0, math.pi / 2), DrawingArc(qpxy(20, 0), 10, math.pi / 2, math.pi / 4))
 #sys.exit(1)
 
 def removeLoops(nodes):
@@ -276,11 +285,12 @@ def removeLoops(nodes):
         if e[1] == 'E' or e[1] == 'L':
             for i in cur_lines:
                 pp = intersections(i, e[2])
-                for p in pp:
-                    if p != i.start and p != i.end and p != e[2].start and p != e[2].end:
+                for p, angle in pp:
+                    if p != i.start and p != i.end:
                         splitpoints[i].append(p)
-                        splitpoints[e[2]].append(p)
                         i.setMarked(True)
+                    if p != e[2].start and p != e[2].end:
+                        splitpoints[e[2]].append(p)
                         e[2].setMarked(True)
     nodes2 = []
     for n in nodes:
@@ -295,7 +305,7 @@ def removeLoops(nodes):
                     last = i
                 if last != n.end:
                     nodes2.append(DrawingLine(last, n.end))            
-            if type(n) is DrawingArc:
+            elif type(n) is DrawingArc:
                 sp = sorted(sp, lambda a, b: cmp(n.angdistp(a), n.angdistp(b)))
                 last = 0
                 dir = 1 if n.span > 0 else -1
@@ -303,25 +313,35 @@ def removeLoops(nodes):
                     this = n.angdistp(i) * dir
                     nodes2.append(DrawingArc(n.centre, n.radius, n.sangle + last, this - last))
                     last = this
-                if last != n.end:
+                if last != n.span:
                     nodes2.append(DrawingArc(n.centre, n.radius, n.sangle + last, n.span - last))
         else:
             nodes2.append(n)
-    return nodes2
     lastAngle = nodes2[-1].startAngle
     sumAngle = 0
     points = {}
     nodes3 = []
     for n in nodes2:
-        if n.start in points:
-            prev = points[n.start]
-            if sign(sumAngle - prev[0]) == orient:
-                nodes3[prev[1]:] = []
-                del points[n.start]
-        points[n.start] = (sumAngle, len(nodes3))
-        sumAngle += nangle(n.startAngle - lastAngle)
-        lastAngle = n.startAngle
-        nodes3.append(n)
+        windings = 0
+        if type(n) is DrawingLine:
+            mid = interp(n.start, n.end, 0.5)
+        else:
+            mid = DrawingArc(n.centre, n.radius, n.sangle, n.span / 2).end
+        if False:
+            normal = circ(qpxy(0, 0), 1, tang(n.start, n.end) + math.pi / 2)
+            l = DrawingLine(mid, mid + normal)
+            nodes3.append(l)
+        normal = circ(qpxy(0, 0), 10000, tang(n.start, n.end) + math.pi / 2)
+        l = DrawingLine(mid, mid + normal)
+        for m in nodes2:
+            if n is m:
+                continue
+            for p, angle in intersections(l, m):
+                windings += sign(angle)
+        n.windings = windings
+        if sign(windings) != orient:
+            nodes3.append(n)
+        #nodes3.append(n)
     return nodes3
 
 def offset(nodes, r):
@@ -423,13 +443,13 @@ class DXFViewer(PreviewBase):
         for i in self.drawing.entities.get_entities():
             it = type(i)
             if it is dxfgrabber.entities.Circle:
-                self.objects.append(DrawingArc(QtCore.QPointF(i.center[0], i.center[1]), i.radius, 0, 2 * math.pi))
+                self.objects.append(DrawingArc(QtCore.QPointF(i.center[0], i.center[1]), i.radius, 0, twopi))
                 #self.drawArcImpl(i.center[0], i.center[1], 0, 0, i.radius, 0, 360, self.drawingPath, self.drawingPen)
             elif it is dxfgrabber.entities.Arc:
                 if i.endangle > i.startangle:
                     self.objects.append(DrawingArc(QtCore.QPointF(i.center[0], i.center[1]), i.radius, i.endangle * math.pi / 180.0, (i.startangle - i.endangle) * math.pi / 180.0))
                 else:
-                    self.objects.append(DrawingArc(QtCore.QPointF(i.center[0], i.center[1]), i.radius, i.startangle * math.pi / 180.0, 2 * math.pi + (i.endangle - i.startangle) * math.pi / 180.0))
+                    self.objects.append(DrawingArc(QtCore.QPointF(i.center[0], i.center[1]), i.radius, i.startangle * math.pi / 180.0, twopi + (i.endangle - i.startangle) * math.pi / 180.0))
                 #if i.endangle > i.startangle:
                 #    self.drawArcImpl(i.center[0], i.center[1], 0, 0, i.radius, i.startangle, i.endangle - i.startangle, self.drawingPath, self.drawingPen)
                 #else:
