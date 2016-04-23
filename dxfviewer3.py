@@ -388,7 +388,11 @@ def offset(nodes, r):
         if pdist(this.start, prev.end) > 0.0001:
             is_concave = nangle(this.startAngle - prev.endAngle) > 0
             if (s < 0) == is_concave:
-                nodes2.append(DrawingArc.fromtangents(prev.end, this.start, prev.endAngle + math.pi / 2, this.startAngle + math.pi / 2))
+                arc = DrawingArc.fromtangents(prev.end, this.start, prev.endAngle + math.pi / 2, this.startAngle + math.pi / 2)
+                if arc:
+                    nodes2.append(arc)
+                else:
+                    nodes2.append(DrawingLine(prev.end, this.start))
             else:
                 nodes2.append(DrawingLine(prev.end, this.orig_start))
                 nodes2.append(DrawingLine(this.orig_start, this.start))
@@ -530,11 +534,13 @@ class DXFViewer(PreviewBase):
             if item:
                 if type(item) is DrawingPolyline:
                     if b == QtCore.Qt.LeftButton:
-                        self.objects.append(DrawingPolyline(offset(item.nodes, 3)))
+                        newnodes = offset(item.nodes, 3)
                     else:
-                        self.objects.append(DrawingPolyline(offset(item.nodes, -2)))
-                    self.createPainters()
-                    self.repaint()
+                        newnodes = offset(item.nodes, -2)
+                    if newnodes:
+                        self.objects.append(DrawingPolyline(newnodes))
+                        self.createPainters()
+                        self.repaint()
                 else:
                     item.setMarked(not item.marked)
                     self.createPainters()
