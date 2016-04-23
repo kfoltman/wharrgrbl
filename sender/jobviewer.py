@@ -139,6 +139,9 @@ class PreviewBase(QtGui.QWidget):
             self.createPainters()
             self.repaint()
         self.dragging = False
+
+    def physToLog(self, pt):
+        return self.x0 + pt.x() / self.getScale(), self.y0 + (self.rect().height() - pt.y()) / self.getScale()
         
     def mouseMoveEvent(self, e):
         if self.dragging:
@@ -147,7 +150,7 @@ class PreviewBase(QtGui.QWidget):
             self.translation -= e.posF() - self.prev_point
             self.prev_point = e.posF()
             self.repaint()
-        self.pointerCoords.emit(self.x0 + e.posF().x() / self.getScale(), self.y0 + (self.rect().height() - e.posF().y()) / self.getScale())
+        self.pointerCoords.emit(*self.physToLog(e.posF()))
         
     def loadFromFile(self, fileName):
         if os.stat(fileName).st_size >= 1048576:
