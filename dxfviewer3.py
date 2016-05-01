@@ -15,6 +15,7 @@ class ShapeDirection:
     OUTSIDE = 1
     INSIDE = 2
     OUTLINE = 3
+    POCKET = 4
 
 class CAMTool(object):
     def __init__(self, diameter, feed, plunge, depth):
@@ -71,13 +72,23 @@ class CAMOperation(object):
         self.direction = direction
         self.parent = parent
         self.tool = defaultTool
-        self.ntabs = 0 if direction == ShapeDirection.OUTLINE else 4
+        self.ntabs = 0 if direction == ShapeDirection.OUTLINE or direction == ShapeDirection.POCKET else 4
         self.tab_width = 1.5 * self.tool.diameter
         self.fullPaths = self.generateFullPaths()
         self.previewPaths = self.generatePreviewPaths()
     def generateFullPaths(self):
         if self.direction == ShapeDirection.OUTLINE:
             return [self.parent]
+        elif self.direction == ShapeDirection.POCKET:
+            offsets = []
+            r = -self.tool.diameter / 2.0
+            while True:
+                newparts = offset(self.parent.nodes, r)
+                if not newparts:
+                    break
+                offsets += newparts
+                r -= 0.75 * 0.5 * self.tool.diameter
+            return offsets
         elif self.direction == ShapeDirection.OUTSIDE:
             r = self.tool.diameter / 2.0
         elif self.direction == ShapeDirection.INSIDE:
@@ -231,6 +242,7 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
         self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
         self.toolbar.addAction("Profile").triggered.connect(self.onOperationProfile)
         self.toolbar.addAction("Cutout").triggered.connect(self.onOperationCutout)
+        self.toolbar.addAction("Pocket").triggered.connect(self.onOperationPocket)
         self.toolbar.addAction("Engrave").triggered.connect(self.onOperationEngrave)
         self.toolbar.addAction("Delete").triggered.connect(self.onOperationDelete)
         self.toolbar.addAction("Generate").triggered.connect(self.onOperationGenerate)
@@ -242,6 +254,8 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
         self.createOperations(ShapeDirection.OUTSIDE)
     def onOperationCutout(self):
         self.createOperations(ShapeDirection.INSIDE)
+    def onOperationPocket(self):
+        self.createOperations(ShapeDirection.POCKET)
     def onOperationEngrave(self):
         self.createOperations(ShapeDirection.OUTLINE)
     def onOperationDelete(self):

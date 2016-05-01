@@ -393,6 +393,8 @@ def removeLoops(nodes):
                     nodes2.append(DrawingArc(n.centre, n.radius, n.sangle + last, n.span - last))
         else:
             nodes2.append(n)
+    if not nodes2:
+        return []
     lastAngle = nodes2[-1].startAngle
     sumAngle = 0
     points = {}
