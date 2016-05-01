@@ -225,9 +225,14 @@ class DrawingPolyline(DrawingItem):
             if tend < start:
                 total = tend
                 continue
-            nodes.append(i.cut(start - tstart, end - tstart))
+            c = i.cut(start - tstart, end - tstart)
+            if c is not None:
+                nodes.append(c)
             total = tend
-        return DrawingPolyline(nodes)
+        if nodes:
+            return DrawingPolyline(nodes)
+        else:
+            return None
             
 class DrawingCircle(DrawingPolyline):
     def __init__(self, centre, radius):
@@ -470,8 +475,10 @@ def offset(nodes, r):
                 nodes2.append(DrawingLine(this.orig_start, this.start))
         nodes2.append(this)
     nodes2 = removeLoops(nodes2)
+    if len(nodes2) < 2:
+        return []
     if reverse:
-        return reversed_nodes(nodes2)
+        return [DrawingPolyline(reversed_nodes(nodes2))]
     else:
-        return nodes2
+        return [DrawingPolyline(nodes2)]
 
