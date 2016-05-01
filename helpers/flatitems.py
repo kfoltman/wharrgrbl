@@ -7,15 +7,15 @@ class DrawingItem(object):
         self.windings = None
     def setMarked(self, marked):
         self.marked = marked
-    def addArrow(self, viewer, center, path, angle):
+    def addArrow(self, viewer, center, path, angle, is_virtual):
         r = 4
         c = QtCore.QPointF(*center)
         sa = angle
         da = angle + 0.4 + math.pi
-        path.addLine(QtCore.QLineF(circ(c, r, -sa), circ(c, r, -da)), viewer.getPen(self))
+        path.addLine(QtCore.QLineF(circ(c, r, -sa), circ(c, r, -da)), viewer.getPen(self, is_virtual))
         da2 = angle - 0.4 + math.pi
-        path.addLine(QtCore.QLineF(circ(c, r, -sa), circ(c, r, -da2)), viewer.getPen(self))
-        path.addLine(QtCore.QLineF(circ(c, r, -da2), circ(c, r, -da)), viewer.getPen(self))
+        path.addLine(QtCore.QLineF(circ(c, r, -sa), circ(c, r, -da2)), viewer.getPen(self, is_virtual))
+        path.addLine(QtCore.QLineF(circ(c, r, -da2), circ(c, r, -da)), viewer.getPen(self, is_virtual))
     def addDebug(self, path, center):
         if self.windings:
             txt = path.addSimpleText("%s" % self.windings)
@@ -28,20 +28,29 @@ class DrawingLine(DrawingItem):
         self.start = start
         self.end = end
         self.startAngle = self.endAngle = math.atan2(self.end.y() - self.start.y(), self.end.x() - self.start.x())
-    def addToPath(self, viewer, path):
+    def addToPath(self, viewer, path, is_virtual):
         start = viewer.project(self.start.x(), self.start.y(), 0)
         end = viewer.project(self.end.x(), self.end.y(), 0)
         center = viewer.project((self.start.x() + self.end.x()) / 2.0, (self.start.y() + self.end.y()) / 2.0, 0)
         self.addDebug(path, center)
-        path.addLine(start[0], start[1], end[0], end[1], viewer.getPen(self))
-        if True:
-            self.addArrow(viewer, center, path, self.startAngle)
+        path.addLine(start[0], start[1], end[0], end[1], viewer.getPen(self, is_virtual))
+        if not is_virtual:
+            self.addArrow(viewer, center, path, self.startAngle, is_virtual)
     def reversed(self):
         return DrawingLine(self.end, self.start)
     def distanceTo(self, p):
         return distPointToLine(QtCore.QPointF(*p), QtCore.QLineF(self.start, self.end))
     def toLine(self):
         return QtCore.QLineF(self.start, self.end)
+    def length(self):
+        return QtCore.QLineF(self.start, self.end).length()
+    def clone(self):
+        return DrawingLine(self.start, self.end)
+    def cut(self, start, end):
+        cur = self.length()
+        if cur <= 0:
+            return self.clone()
+        return DrawingLine(interp(self.start, self.end, max(start, 0) * 1.0 / cur), interp(self.start, self.end, min(end, cur) * 1.0 / cur))
 
 class DrawingArc(DrawingItem):
     def __init__(self, centre, radius, sangle, span):
@@ -55,6 +64,8 @@ class DrawingArc(DrawingItem):
         self.endAngle = nangle(sangle + span + d)
         self.start = circ(self.centre, self.radius, self.sangle)
         self.end = circ(self.centre, self.radius, self.sangle + self.span)
+    def length(self):
+        return abs(self.span) * self.radius
     def reversed(self):
         return DrawingArc(self.centre, self.radius, nangle(self.sangle + self.span), -self.span)
     def angdist(self, angle):
@@ -134,7 +145,7 @@ class DrawingArc(DrawingItem):
         span = nangle(endAngle - startAngle)
         sangle = startAngle - dir * math.pi / 2
         return DrawingArc(centre, radius, sangle, span)
-    def addToPath(self, viewer, path):
+    def addToPath(self, viewer, path, is_virtual):
         xc, yc = viewer.project(self.centre.x(), self.centre.y(), 0)
         r = self.radius * viewer.getScale()
         sangle = r2d(self.sangle)
@@ -148,11 +159,12 @@ class DrawingArc(DrawingItem):
             pp.lineTo(*viewer.project(self.minX(), self.centre.y() + self.radius, 0))
             pp.moveTo(*viewer.project(self.maxX(), self.centre.y() - self.radius, 0))
             pp.lineTo(*viewer.project(self.maxX(), self.centre.y() + self.radius, 0))
-        path.addPath(pp, viewer.getPen(self))
-        a = self.sangle
-        self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.startAngle)
-        a = self.sangle + self.span
-        self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.endAngle)
+        path.addPath(pp, viewer.getPen(self, is_virtual))
+        if not is_virtual:
+            a = self.sangle
+            self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.startAngle, is_virtual)
+            a = self.sangle + self.span
+            self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.endAngle, is_virtual)
     def distanceTo(self, p):
         p = QtCore.QPointF(*p)
         theta = tang(self.centre, p)
@@ -169,6 +181,16 @@ class DrawingArc(DrawingItem):
         else:
             dist = min(pdist(p, self.start), pdist(p, self.end))
             return dist
+    def clone(self):
+        return DrawingArc(self.centre, self.radius, self.sangle, self.span)
+    def cut(self, start, end):
+        cur = self.length()
+        if cur <= 0:
+            return self.clone()
+        else:
+            start = max(start, 0)
+            end = min(end, cur)
+            return DrawingArc(self.centre, self.radius, self.sangle + self.span * start / cur, self.span * (end - start) / cur)
 
 class DrawingPolyline(DrawingItem):
     def __init__(self, nodes):
@@ -178,9 +200,9 @@ class DrawingPolyline(DrawingItem):
         self.endAngle = nodes[-1].endAngle
         self.start = nodes[0].start
         self.end = nodes[-1].end
-    def addToPath(self, viewer, path):
+    def addToPath(self, viewer, path, is_virtual):
         for i in self.nodes:
-            i.addToPath(viewer, path)
+            i.addToPath(viewer, path, is_virtual)
     def distanceTo(self, p):
         if len(self.nodes) == 0:
             return None
@@ -189,6 +211,23 @@ class DrawingPolyline(DrawingItem):
         self.marked = marked
         for i in self.nodes:
             i.setMarked(marked)
+    def length(self):
+        return sum([i.length() for i in self.nodes])
+    def cut(self, start, end):
+        nodes = []
+        total = 0
+        for i in self.nodes:
+            l = i.length()
+            tstart = total
+            if tstart > end:
+                break
+            tend = total + l
+            if tend < start:
+                total = tend
+                continue
+            nodes.append(i.cut(start - tstart, end - tstart))
+            total = tend
+        return DrawingPolyline(nodes)
             
 class DrawingCircle(DrawingPolyline):
     def __init__(self, centre, radius):
