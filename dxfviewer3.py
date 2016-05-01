@@ -83,7 +83,7 @@ class CAMOperation(object):
         elif self.direction == ShapeDirection.INSIDE:
             r = -self.tool.diameter / 2.0
 
-        return [DrawingPolyline(offset(self.parent.nodes, r))]
+        return offset(self.parent.nodes, r)
 
     def generateTabs(self, path):
         l = path.length()
@@ -101,7 +101,9 @@ class CAMOperation(object):
         for p in self.fullPaths:
             for start, end, is_tab in self.generateTabs(p):
                 if not is_tab:
-                    paths.append(p.cut(start, end))
+                    c = p.cut(start, end)
+                    if c is not None:
+                        paths.append(c)
         return paths
 
 class DXFViewer(PreviewBase):
