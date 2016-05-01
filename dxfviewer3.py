@@ -11,13 +11,112 @@ from helpers.gui import MenuHelper
 from helpers.geom import *
 from helpers.flatitems import *
 
+class ShapeDirection:
+    OUTSIDE = 1
+    INSIDE = 2
+    OUTLINE = 3
+
+class CAMTool(object):
+    def __init__(self, diameter, feed, plunge, depth):
+        self.diameter = float(diameter)
+        self.feed = float(feed)
+        self.plunge = float(plunge)
+        self.depth = float(depth)
+        self.clearance = 5
+    def begin(self):
+        return []
+    def followContour(self, nodes, z, last, lastz):
+        ops = []
+        for i in nodes:
+            if type(i) is DrawingLine:
+                ops += self.moveTo(i.start, z, last, lastz)
+                ops += self.lineTo(i.end, z)
+                last = i.end
+                lastz = z
+            elif type(i) is DrawingArc:
+                ops += self.moveTo(i.start, z, last, lastz)
+                ops += self.arc(i.start, i.end, i.centre, i.span < 0, z)
+                last = i.end
+                lastz = z
+            elif isinstance(i, DrawingPolyline):
+                dops, last, lastz = self.followContour(i.nodes, z, last, lastz)
+                ops += dops
+        return ops, last, lastz
+    def plungeTo(self, z, lastz):
+        if z < lastz:
+            return ["G1 F%f Z%f" % (self.plunge, z)]
+        elif z > lastz:
+            return ["G0 Z%f" % (z)]
+        else:
+            return []
+    def moveTo(self, pt, z, last, lastz):
+        if pt == last:
+            return self.plungeTo(z, lastz)
+        return ["G0 Z%f" % self.clearance, "G0 X%f Y%f" % (pt.x(), pt.y())] + self.plungeTo(z, self.clearance)
+    def lineTo(self, pt, z):
+        return ["G1 F%f X%f Y%f Z%f" % (self.feed, pt.x(), pt.y(), z)]
+    def arc(self, last, pt, centre, clockwise, z):
+        return ["G%d F%f X%f Y%f I%f J%f Z%f" % (2 if clockwise else 3, self.feed, pt.x(), pt.y(), centre.x() - last.x(), centre.y() - last.y(), z)]
+
+defaultTool = CAMTool(diameter = 2.0, feed = 200.0, plunge = 100.0, depth = 0.3)
+defaultZStart = 0
+defaultZEnd = -2.5
+defaultZTab = -2
+defaultNumTabs = 4
+
+class CAMOperation(object):
+    def __init__(self, direction, parent):
+        self.zstart = float(defaultZStart)
+        self.zend = float(defaultZEnd)
+        self.direction = direction
+        self.parent = parent
+        self.tool = defaultTool
+        self.ntabs = 0 if direction == ShapeDirection.OUTLINE else 4
+        self.tab_width = 1.5 * self.tool.diameter
+        self.fullPaths = self.generateFullPaths()
+        self.previewPaths = self.generatePreviewPaths()
+    def generateFullPaths(self):
+        if self.direction == ShapeDirection.OUTLINE:
+            return [self.parent]
+        elif self.direction == ShapeDirection.OUTSIDE:
+            r = self.tool.diameter / 2.0
+        elif self.direction == ShapeDirection.INSIDE:
+            r = -self.tool.diameter / 2.0
+
+        return [DrawingPolyline(offset(self.parent.nodes, r))]
+
+    def generateTabs(self, path):
+        l = path.length()
+        n = self.ntabs
+        if not n:
+            return [(0, l, False)]
+        slices = []
+        for i in range(n):
+            slices.append((i * l / n, (i + 1) * l / n - self.tab_width, False))
+            slices.append(((i + 1) * l / n - self.tab_width, (i + 1) * l / n, True))
+        return slices
+
+    def generatePreviewPaths(self):
+        paths = []
+        for p in self.fullPaths:
+            for start, end, is_tab in self.generateTabs(p):
+                if not is_tab:
+                    paths.append(p.cut(start, end))
+        return paths
+
 class DXFViewer(PreviewBase):
     def __init__(self, drawing):
         PreviewBase.__init__(self)
         self.drawing = drawing
+        self.operations = []
         self.generateObjects()
         self.updateCursor()
-    def getPen(self, item):
+    def getPen(self, item, is_virtual):
+        if is_virtual:
+            pen = QtGui.QPen(QtGui.QColor(160, 160, 160), defaultTool.diameter * self.getScale())
+            pen.setCapStyle(QtCore.Qt.RoundCap)
+            pen.setJoinStyle(QtCore.Qt.RoundJoin)
+            return pen
         if item.marked:
             return self.activeItemPen
         return self.drawingPen
@@ -76,13 +175,17 @@ class DXFViewer(PreviewBase):
     def createPainters(self):
         self.initPainters()
         self.drawingPath = QtGui.QGraphicsScene()
+        self.previewPen = QtGui.QPen(QtGui.QColor(160, 160, 160), 0)
         self.drawingPen = QtGui.QPen(QtGui.QColor(0, 0, 0), 0)
         self.drawingPen2 = QtGui.QPen(QtGui.QColor(255, 0, 0), 0)
         self.activeItemPen = QtGui.QPen(QtGui.QColor(0, 255, 0), 0)
         #self.drawingPen.setCapStyle(QtCore.Qt.RoundCap)
         #self.drawingPen.setJoinStyle(QtCore.Qt.RoundJoin)
+        for o in self.operations:
+            for n in o.previewPaths:
+                n.addToPath(self, self.drawingPath, True)
         for o in self.objects:
-            o.addToPath(self, self.drawingPath)
+            o.addToPath(self, self.drawingPath, False)
     def renderDrawing(self, qp):
         trect = QtCore.QRectF(self.rect()).translated(self.translation)
         if self.drawingPath is not None:
@@ -106,19 +209,9 @@ class DXFViewer(PreviewBase):
             item = self.getItemAtPoint(lp)
                 
             if item:
-                if issubclass(type(item), DrawingPolyline):
-                    if b == QtCore.Qt.LeftButton:
-                        newnodes = offset(item.nodes, 3)
-                    else:
-                        newnodes = offset(item.nodes, -1)
-                    if newnodes:
-                        self.objects.append(DrawingPolyline(newnodes))
-                        self.createPainters()
-                        self.repaint()
-                else:
-                    item.setMarked(not item.marked)
-                    self.createPainters()
-                    self.repaint()
+                item.setMarked(not item.marked)
+                self.createPainters()
+                self.repaint()
         elif b == QtCore.Qt.RightButton:
             self.start_point = e.posF()
             self.prev_point = e.posF()
@@ -132,9 +225,67 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
     def __init__(self, drawing):
         QtGui.QMainWindow.__init__(self)
         self.drawing = drawing
+        self.toolbar = QtGui.QToolBar("Operations")
+        self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
+        self.toolbar.addAction("Profile").triggered.connect(self.onOperationProfile)
+        self.toolbar.addAction("Cutout").triggered.connect(self.onOperationCutout)
+        self.toolbar.addAction("Engrave").triggered.connect(self.onOperationEngrave)
+        self.toolbar.addAction("Delete").triggered.connect(self.onOperationDelete)
+        self.toolbar.addAction("Generate").triggered.connect(self.onOperationGenerate)
+        self.addToolBar(self.toolbar)
         self.viewer = DXFViewer(drawing)
         self.setCentralWidget(self.viewer)
         self.setMinimumSize(800, 600)
+    def onOperationProfile(self):
+        self.createOperations(ShapeDirection.OUTSIDE)
+    def onOperationCutout(self):
+        self.createOperations(ShapeDirection.INSIDE)
+    def onOperationEngrave(self):
+        self.createOperations(ShapeDirection.OUTLINE)
+    def onOperationDelete(self):
+        toDelete = set([])
+        for i in self.viewer.objects:
+            if i.marked:
+                toDelete.add(i)
+                i.setMarked(False)
+        self.viewer.operations = [o for o in self.viewer.operations if o.parent not in toDelete]
+        self.viewer.createPainters()
+        self.viewer.repaint()
+    def createOperations(self, dir):
+        for i in self.viewer.objects:
+            if i.marked:
+                if dir == ShapeDirection.OUTLINE or isinstance(i, DrawingPolyline):
+                    op = CAMOperation(dir, i)
+                    self.viewer.operations.append(op)
+                    i.setMarked(False)
+        self.viewer.createPainters()
+        self.viewer.repaint()
+    def onOperationGenerate(self):
+        f = file("test.nc", "w")
+        ops = ["G90 G17"]
+        tool = defaultTool
+        lastTool = None
+        for o in self.viewer.operations:
+            if o.tool != lastTool:
+                ops += tool.begin()
+                lastTool = tool
+            lastz = 5
+            last = None
+            for p in o.fullPaths:
+                z = defaultZStart
+                tabs = o.generateTabs(p)
+                while z > defaultZEnd:
+                    z -= o.tool.depth
+                    if z < defaultZEnd:
+                        z = defaultZEnd
+                    for start, end, is_tab in tabs:
+                        opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, defaultZTab), last, lastz)
+                        ops += opsc
+        ops += lastTool.moveTo(qpxy(0, 0), lastTool.clearance, last, lastz)
+        for op in ops:
+            print op
+            f.write("%s\n" % op)
+        f.close()
 
 def main():    
     app = DXFApplication(sys.argv)
