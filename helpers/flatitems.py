@@ -78,7 +78,6 @@ class DrawingArc(DrawingItem):
         return self.angdist(tang(self.centre, p))
     
     def inarc(self, theta):
-        theta = nangle(theta)
         if self.span > 0:
             return (theta - self.sangle) % twopi <= self.span
         if self.span < 0:
@@ -89,17 +88,13 @@ class DrawingArc(DrawingItem):
     def minX(self):
         x = min(self.start.x(), self.end.x())
         # Check for crossing 
-        if self.span > 0 and self.sangle + self.span > math.pi:
-            x = self.centre.x() - self.radius
-        if self.span < 0 and self.sangle + self.span < -math.pi:
+        if self.inarc(math.pi):
             x = self.centre.x() - self.radius
         return x
     def maxX(self):
         x = max(self.start.x(), self.end.x())
         # Check for crossing 
-        if self.span > 0 and self.sangle < 0 and self.sangle + self.span > 0:
-            x = self.centre.x() + self.radius
-        if self.span < 0 and self.sangle > 0 and self.sangle + self.span < 0:
+        if self.inarc(0):
             x = self.centre.x() + self.radius
         return x
     @staticmethod
