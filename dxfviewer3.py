@@ -14,11 +14,24 @@ from helpers.gui import MenuHelper
 from helpers.geom import *
 from helpers.flatitems import *
 
+class MyRubberBand(QtGui.QRubberBand):
+    def paintEvent(self, e):
+        qp = QtGui.QPainter()
+        qp.begin(self)
+        pen = QtGui.QPen(QtGui.QColor(255, 0, 0))
+        brush = QtGui.QBrush(QtGui.QColor(255, 0, 0))
+        qp.setPen(pen)
+        qp.setBrush(brush)
+        qp.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        qp.fillRect(self.rect().adjusted(0, 0, -1, -1), QtGui.QBrush(QtGui.QColor(255, 0, 0)))
+        qp.end()
+
 class DXFViewer(PreviewBase):
     def __init__(self, drawing):
         PreviewBase.__init__(self)
         self.objects = dxfToObjects(drawing)
         self.operations = []
+        self.selection = None
         self.updateCursor()
     def getPen(self, item, is_virtual):
         if is_virtual:
@@ -50,17 +63,16 @@ class DXFViewer(PreviewBase):
     def updateCursor(self):
         self.setCursor(QtCore.Qt.CrossCursor)
     def getItemAtPoint(self, p):
-        mind = None
-        for i in self.objects:
-            id = i.distanceTo(p)
-            if mind is None or mind > id:
-                mind = id
-                item = i
-        if mind < 20 / self.getScale():
-            return item
+        matches = sorted([(i, i.distanceTo(p)) for i in self.objects], lambda o1, o2: cmp(o1[1], o2[1]))
+        mind = matches[0][1] if len(matches) > 0 else None
+        second = matches[1][1] if len(matches) > 1 else None
+        if second is not None and abs(second - mind) < 1 / self.getScale():
+            print "Warning: Multiple items at similar distance"
+        if mind < 10 / self.getScale():
+            return matches[0][0]
     def mousePressEvent(self, e):
         b = e.button()
-        if b == QtCore.Qt.LeftButton or b == QtCore.Qt.MiddleButton:
+        if b == QtCore.Qt.LeftButton:
             p = e.posF()
             lp = self.physToLog(p)
             item = self.getItemAtPoint(lp)
@@ -69,11 +81,37 @@ class DXFViewer(PreviewBase):
                 item.setMarked(not item.marked)
                 self.createPainters()
                 self.repaint()
+            else:
+                if self.selection is None:
+                    self.selection = MyRubberBand(QtGui.QRubberBand.Rectangle, self)
+                self.selectionOrigin = e.pos()
+                self.selection.setGeometry(QtCore.QRect(e.pos(), QtCore.QSize()))
+                self.selection.show()
         elif b == QtCore.Qt.RightButton:
             self.start_point = e.posF()
             self.prev_point = e.posF()
             self.start_origin = (self.x0, self.y0)
             self.dragging = True
+    def mouseMoveEvent(self, e):
+        if self.selection and self.selection.isVisible():
+            self.selection.setGeometry(QtCore.QRect(self.selectionOrigin, e.pos()).normalized())
+        PreviewBase.mouseMoveEvent(self, e)
+    def mouseReleaseEvent(self, e):
+        if self.selection and self.selection.isVisible():
+            ps = self.unproject(self.selectionOrigin.x(), self.selectionOrigin.y())
+            pe = self.unproject(e.pos().x(), e.pos().y())
+            box = QtCore.QRectF(qp(ps), qp(pe)).normalized()
+            
+            self.selectByBox(box)
+            self.selection.hide()
+            self.selection = None
+        PreviewBase.mouseReleaseEvent(self, e)
+    def selectByBox(self, box):
+        for o in self.objects:
+            if box.contains(o.bounds):
+                o.setMarked(True)
+        self.createPainters()
+        self.repaint()
     
 class DXFApplication(QtGui.QApplication):
     pass

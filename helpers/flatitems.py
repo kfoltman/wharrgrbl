@@ -21,6 +21,8 @@ class DrawingItem(object):
             txt = path.addSimpleText("%s" % self.windings)
             txt.setX(center[0])
             txt.setY(center[1])
+    def calcBounds(self):
+        return QtCore.QRectF(qpxy(self.minX(), self.minY()), qpxy(self.maxX(), self.maxY()))
 
 class DrawingLine(DrawingItem):
     def __init__(self, start, end):
@@ -28,6 +30,7 @@ class DrawingLine(DrawingItem):
         self.start = start
         self.end = end
         self.startAngle = self.endAngle = math.atan2(self.end.y() - self.start.y(), self.end.x() - self.start.x())
+        self.bounds = self.calcBounds()
     def addToPath(self, viewer, path, is_virtual):
         start = viewer.project(self.start.x(), self.start.y(), 0)
         end = viewer.project(self.end.x(), self.end.y(), 0)
@@ -51,6 +54,14 @@ class DrawingLine(DrawingItem):
         if cur <= 0:
             return self.clone()
         return DrawingLine(interp(self.start, self.end, max(start, 0) * 1.0 / cur), interp(self.start, self.end, min(end, cur) * 1.0 / cur))
+    def minX(self):
+        return min(self.start.x(), self.end.x())
+    def minY(self):
+        return min(self.start.y(), self.end.y())
+    def maxX(self):
+        return max(self.start.x(), self.end.x())
+    def maxY(self):
+        return max(self.start.y(), self.end.y())
 
 class DrawingArc(DrawingItem):
     def __init__(self, centre, radius, sangle, span):
@@ -64,6 +75,7 @@ class DrawingArc(DrawingItem):
         self.endAngle = nangle(sangle + span + d)
         self.start = circ(self.centre, self.radius, self.sangle)
         self.end = circ(self.centre, self.radius, self.sangle + self.span)
+        self.bounds = self.calcBounds()
     def length(self):
         return abs(self.span) * self.radius
     def reversed(self):
@@ -85,6 +97,16 @@ class DrawingArc(DrawingItem):
         return False
     def inarcp(self, p):
         return self.inarc(tang(self.centre, p))
+    def minY(self):
+        y = min(self.start.y(), self.end.y())
+        if self.inarc(-math.pi / 2):
+            y = self.centre.y() - self.radius
+        return y
+    def maxY(self):
+        y = max(self.start.y(), self.end.y())
+        if self.inarc(math.pi / 2):
+            y = self.centre.y() + self.radius
+        return y
     def minX(self):
         x = min(self.start.x(), self.end.x())
         # Check for crossing 
@@ -195,6 +217,7 @@ class DrawingPolyline(DrawingItem):
         self.endAngle = nodes[-1].endAngle
         self.start = nodes[0].start
         self.end = nodes[-1].end
+        self.bounds = self.calcBounds()
     def addToPath(self, viewer, path, is_virtual):
         for i in self.nodes:
             i.addToPath(viewer, path, is_virtual)
@@ -228,6 +251,8 @@ class DrawingPolyline(DrawingItem):
             return DrawingPolyline(nodes)
         else:
             return None
+    def calcBounds(self):
+        return reduce(QtCore.QRectF.united, [o.bounds for o in self.nodes])
             
 class DrawingCircle(DrawingPolyline):
     def __init__(self, centre, radius):
