@@ -2,6 +2,8 @@ import math
 import re
 import sys
 import time
+from cam.tool import *
+from cam.operation import *
 
 import dxfgrabber
 
@@ -10,115 +12,6 @@ from sender.jobviewer import *
 from helpers.gui import MenuHelper
 from helpers.geom import *
 from helpers.flatitems import *
-
-class ShapeDirection:
-    OUTSIDE = 1
-    INSIDE = 2
-    OUTLINE = 3
-    POCKET = 4
-
-class CAMTool(object):
-    def __init__(self, diameter, feed, plunge, depth):
-        self.diameter = float(diameter)
-        self.feed = float(feed)
-        self.plunge = float(plunge)
-        self.depth = float(depth)
-        self.clearance = 5
-    def begin(self):
-        return []
-    def followContour(self, nodes, z, last, lastz):
-        ops = []
-        for i in nodes:
-            if type(i) is DrawingLine:
-                ops += self.moveTo(i.start, z, last, lastz)
-                ops += self.lineTo(i.end, z)
-                last = i.end
-                lastz = z
-            elif type(i) is DrawingArc:
-                ops += self.moveTo(i.start, z, last, lastz)
-                ops += self.arc(i.start, i.end, i.centre, i.span < 0, z)
-                last = i.end
-                lastz = z
-            elif isinstance(i, DrawingPolyline):
-                dops, last, lastz = self.followContour(i.nodes, z, last, lastz)
-                ops += dops
-        return ops, last, lastz
-    def plungeTo(self, z, lastz):
-        if z < lastz:
-            return ["G1 F%f Z%f" % (self.plunge, z)]
-        elif z > lastz:
-            return ["G0 Z%f" % (z)]
-        else:
-            return []
-    def moveTo(self, pt, z, last, lastz):
-        if pt == last:
-            return self.plungeTo(z, lastz)
-        return ["G0 Z%f" % self.clearance, "G0 X%f Y%f" % (pt.x(), pt.y())] + self.plungeTo(z, self.clearance)
-    def lineTo(self, pt, z):
-        return ["G1 F%f X%f Y%f Z%f" % (self.feed, pt.x(), pt.y(), z)]
-    def arc(self, last, pt, centre, clockwise, z):
-        return ["G%d F%f X%f Y%f I%f J%f Z%f" % (2 if clockwise else 3, self.feed, pt.x(), pt.y(), centre.x() - last.x(), centre.y() - last.y(), z)]
-
-defaultTool = CAMTool(diameter = 2.0, feed = 200.0, plunge = 100.0, depth = 0.3)
-defaultZStart = 0
-defaultZEnd = -2.5
-defaultZTab = -2
-defaultNumTabs = 4
-
-class CAMOperation(object):
-    def __init__(self, direction, parent):
-        self.zstart = float(defaultZStart)
-        self.zend = float(defaultZEnd)
-        self.direction = direction
-        self.parent = parent
-        self.tool = defaultTool
-        self.ntabs = 0 if direction == ShapeDirection.OUTLINE or direction == ShapeDirection.POCKET else 4
-        self.tab_width = 1.5 * self.tool.diameter
-        self.fullPaths = self.generateFullPaths()
-        self.previewPaths = self.generatePreviewPaths()
-    def generateFullPaths(self):
-        if self.direction == ShapeDirection.OUTLINE:
-            return [self.parent]
-        elif self.direction == ShapeDirection.POCKET:
-            paths = []
-            r = -self.tool.diameter / 2.0
-            while True:
-                newparts = offset(self.parent.nodes, r)
-                if not newparts:
-                    break
-                paths.append(newparts)
-                r -= 0.75 * 0.5 * self.tool.diameter
-            offsets = []
-            for p in reversed(paths):
-                offsets += p
-            return offsets
-        elif self.direction == ShapeDirection.OUTSIDE:
-            r = self.tool.diameter / 2.0
-        elif self.direction == ShapeDirection.INSIDE:
-            r = -self.tool.diameter / 2.0
-
-        return offset(self.parent.nodes, r)
-
-    def generateTabs(self, path):
-        l = path.length()
-        n = self.ntabs
-        if not n:
-            return [(0, l, False)]
-        slices = []
-        for i in range(n):
-            slices.append((i * l / n, (i + 1) * l / n - self.tab_width, False))
-            slices.append(((i + 1) * l / n - self.tab_width, (i + 1) * l / n, True))
-        return slices
-
-    def generatePreviewPaths(self):
-        paths = []
-        for p in self.fullPaths:
-            for start, end, is_tab in self.generateTabs(p):
-                if not is_tab:
-                    c = p.cut(start, end)
-                    if c is not None:
-                        paths.append(c)
-        return paths
 
 class DXFViewer(PreviewBase):
     def __init__(self, drawing):
@@ -274,7 +167,7 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
         for i in self.viewer.objects:
             if i.marked:
                 if dir == ShapeDirection.OUTLINE or isinstance(i, DrawingPolyline):
-                    op = CAMOperation(dir, i)
+                    op = CAMOperation(dir, i, defaultTool)
                     self.viewer.operations.append(op)
                     i.setMarked(False)
         self.viewer.createPainters()
