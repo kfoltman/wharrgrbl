@@ -22,7 +22,7 @@ class DrawingItem(object):
             txt.setX(center[0])
             txt.setY(center[1])
     def calcBounds(self):
-        return QtCore.QRectF(qpxy(self.minX(), self.minY()), qpxy(self.maxX(), self.maxY()))
+        return expandRect(QtCore.QRectF(qpxy(self.minX(), self.minY()), qpxy(self.maxX(), self.maxY())))
 
 class DrawingLine(DrawingItem):
     def __init__(self, start, end):
