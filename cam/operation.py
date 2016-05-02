@@ -10,14 +10,14 @@ class ShapeDirection:
 defaultTool = CAMTool(diameter = 2.0, feed = 200.0, plunge = 100.0, depth = 0.3)
 defaultZStart = 0
 defaultZEnd = -2.5
-defaultZTab = -2
+defaultTabHeight = 1
 defaultNumTabs = 4
 
 class CAMOperation(object):
     def __init__(self, direction, parent, tool):
         self.zstart = float(defaultZStart)
         self.zend = float(defaultZEnd)
-        self.ztab = float(defaultZTab)
+        self.tab_height = float(defaultTabHeight)
         self.direction = direction
         self.parent = parent
         self.tool = tool
@@ -25,6 +25,18 @@ class CAMOperation(object):
         self.tab_width = 1.5 * self.tool.diameter
         self.fullPaths = self.generateFullPaths()
         self.previewPaths = self.generatePreviewPaths()
+    def description(self):
+        s = ""
+        if self.direction == ShapeDirection.OUTLINE:
+            s += "engrave"
+        elif self.direction == ShapeDirection.POCKET:
+            s += "pocket"
+        elif self.direction == ShapeDirection.OUTSIDE:
+            s += "profile"
+        elif self.direction == ShapeDirection.INSIDE:
+            s += "cutout"
+        s += ": " + type(self.parent).__name__.replace("Drawing", "")
+        return s
     def generateFullPaths(self):
         if self.direction == ShapeDirection.OUTLINE:
             return [self.parent]
