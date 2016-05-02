@@ -282,7 +282,7 @@ def intersections(d1, d2):
         dist = pdist(d1.centre, d2.centre)
         if dist > d1.radius + d2.radius or dist == 0:
             return []
-        along = (d1.radius + dist - d2.radius) * 0.5
+        along = (d1.radius ** 2 - d2.radius ** 2 + dist ** 2) / (2.0 * dist)
         across2 = d1.radius ** 2 - along ** 2
         if across2 < 0:
             return []
@@ -328,7 +328,7 @@ def intersections(d1, d2):
                 pts.append((p, cangle(p)))
         return pts
     return []
-        
+
 def removeLoops(nodes):
     orient = findOrientation(nodes)
     events = []
@@ -364,10 +364,8 @@ def removeLoops(nodes):
                 for p, angle in pp:
                     if p != i.start and p != i.end:
                         splitpoints[i].append(p)
-                        i.setMarked(True)
                     if p != e[2].start and p != e[2].end:
                         splitpoints[e[2]].append(p)
-                        e[2].setMarked(True)
     nodes2 = []
     for n in nodes:
         sp = splitpoints[n]
