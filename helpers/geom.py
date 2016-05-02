@@ -4,6 +4,8 @@ from PyQt4 import QtCore, QtGui
 defaultEps = 1e-10
 twopi = 2 * math.pi
 
+def expandRect(rc):
+    return rc.adjusted(0, 0, max(abs(rc.left()), abs(rc.right())) * defaultEps, max(abs(rc.top()), abs(rc.bottom())) * defaultEps)
 def sign(x):
     if x > 0:
         return 1
