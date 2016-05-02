@@ -27,6 +27,7 @@ class MyRubberBand(QtGui.QRubberBand):
         qp.end()
 
 class DXFViewer(PreviewBase):
+    selected = QtCore.pyqtSignal([])
     def __init__(self, drawing):
         PreviewBase.__init__(self)
         self.objects = dxfToObjects(drawing)
@@ -73,17 +74,21 @@ class DXFViewer(PreviewBase):
             print "Warning: Multiple items at similar distance"
         if mind < 10 / self.getScale():
             return matches[0][0]
+    def updateSelection(self):
+        self.createPainters()
+        self.repaint()
+        self.selected.emit()
+    def getSelected(self):
+        return [i for i in self.objects if i.marked]
     def mousePressEvent(self, e):
         b = e.button()
         if b == QtCore.Qt.LeftButton:
             p = e.posF()
             lp = self.physToLog(p)
             item = self.getItemAtPoint(lp)
-                
             if item:
                 item.setMarked(not item.marked)
-                self.createPainters()
-                self.repaint()
+                self.updateSelection()
             else:
                 if self.selection is None:
                     self.selection = MyRubberBand(QtGui.QRubberBand.Rectangle, self)
@@ -113,11 +118,48 @@ class DXFViewer(PreviewBase):
         for o in self.objects:
             if box.contains(o.bounds):
                 o.setMarked(True)
-        self.createPainters()
-        self.repaint()
+        self.updateSelection()
     
 class DXFApplication(QtGui.QApplication):
     pass
+
+class OperationTreeWidget(QtGui.QDockWidget):
+    def __init__(self, viewer):
+        QtGui.QDockWidget.__init__(self, "Operations")
+        self.initUI()
+        self.viewer = viewer
+        self.viewer.selected.connect(self.onSelectionChanged)
+    def initUI(self):
+        self.list = QtGui.QListWidget()
+        #self.table.setVerticalHeaderLabels(['Value'])
+        self.setWidget(self.list)
+    def onSelectionChanged(self):
+        self.list.clear()
+        ops = {}
+        for o in self.viewer.operations:
+            if o.parent not in ops:
+                ops[o.parent] = []
+            ops[o.parent].append(o)
+        for i in self.viewer.getSelected():
+            if i in ops:
+                for o in ops[i]:
+                    self.list.addItem(o.description())
+
+class ObjectPropertiesWidget(QtGui.QDockWidget):
+    def __init__(self):
+        QtGui.QDockWidget.__init__(self, "Properties")
+        self.initUI()
+    def initUI(self):
+        self.properties = [
+            ('End depth', ),
+            ('Start depth', ),
+            ('Tab height', ),
+            ('Tab length', ),
+        ]
+        self.table = QtGui.QTableWidget(len(self.properties), 1)
+        self.table.setHorizontalHeaderLabels(['Value'])
+        self.table.setVerticalHeaderLabels([p[0] for p in self.properties])
+        self.setWidget(self.table)
 
 class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
     def __init__(self, drawing):
@@ -133,8 +175,10 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
         self.toolbar.addAction("Generate").triggered.connect(self.onOperationGenerate)
         self.addToolBar(self.toolbar)
         self.viewer = DXFViewer(drawing)
+        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, OperationTreeWidget(self.viewer))
+        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, ObjectPropertiesWidget())
         self.setCentralWidget(self.viewer)
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(1024, 600)
     def onOperationProfile(self):
         self.createOperations(ShapeDirection.OUTSIDE)
     def onOperationCutout(self):
@@ -150,8 +194,7 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
                 toDelete.add(i)
                 i.setMarked(False)
         self.viewer.operations = [o for o in self.viewer.operations if o.parent not in toDelete]
-        self.viewer.createPainters()
-        self.viewer.repaint()
+        self.viewer.updateSelection()
     def createOperations(self, dir):
         for i in self.viewer.objects:
             if i.marked:
@@ -159,8 +202,7 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
                     op = CAMOperation(dir, i, defaultTool)
                     self.viewer.operations.append(op)
                     i.setMarked(False)
-        self.viewer.createPainters()
-        self.viewer.repaint()
+        self.viewer.updateSelection()
     def onOperationGenerate(self):
         ops = ["G90 G17"]
         lastTool = None
@@ -178,7 +220,7 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
                     if z < o.zend:
                         z = o.zend
                     for start, end, is_tab in tabs:
-                        opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, o.ztab), last, lastz)
+                        opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, min(o.zend - o.tab_height, o.zstart)), last, lastz)
                         ops += opsc
         if lastTool is not None:
             ops += lastTool.moveTo(qpxy(0, 0), lastTool.clearance, last, lastz)
