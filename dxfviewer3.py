@@ -80,14 +80,17 @@ class CAMOperation(object):
         if self.direction == ShapeDirection.OUTLINE:
             return [self.parent]
         elif self.direction == ShapeDirection.POCKET:
-            offsets = []
+            paths = []
             r = -self.tool.diameter / 2.0
             while True:
                 newparts = offset(self.parent.nodes, r)
                 if not newparts:
                     break
-                offsets += newparts
+                paths.append(newparts)
                 r -= 0.75 * 0.5 * self.tool.diameter
+            offsets = []
+            for p in reversed(paths):
+                offsets += p
             return offsets
         elif self.direction == ShapeDirection.OUTSIDE:
             r = self.tool.diameter / 2.0
