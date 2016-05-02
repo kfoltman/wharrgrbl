@@ -1,3 +1,5 @@
+from helpers.flatitems import *
+
 class CAMTool(object):
     def __init__(self, diameter, feed, plunge, depth):
         self.diameter = float(diameter)
