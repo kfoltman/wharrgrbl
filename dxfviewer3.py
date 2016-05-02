@@ -160,25 +160,25 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
         self.viewer.repaint()
     def onOperationGenerate(self):
         ops = ["G90 G17"]
-        tool = defaultTool
         lastTool = None
         for o in self.viewer.operations:
             if o.tool != lastTool:
-                ops += tool.begin()
-                lastTool = tool
+                ops += o.tool.begin()
+                lastTool = o.tool
             lastz = 5
             last = None
             for p in o.fullPaths:
-                z = defaultZStart
+                z = o.zstart
                 tabs = o.generateTabs(p)
-                while z > defaultZEnd:
+                while z > o.zend:
                     z -= o.tool.depth
-                    if z < defaultZEnd:
-                        z = defaultZEnd
+                    if z < o.zend:
+                        z = o.zend
                     for start, end, is_tab in tabs:
-                        opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, defaultZTab), last, lastz)
+                        opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, o.ztab), last, lastz)
                         ops += opsc
-        ops += lastTool.moveTo(qpxy(0, 0), lastTool.clearance, last, lastz)
+        if lastTool is not None:
+            ops += lastTool.moveTo(qpxy(0, 0), lastTool.clearance, last, lastz)
         f = file("test.nc", "w")
         for op in ops:
             print op
