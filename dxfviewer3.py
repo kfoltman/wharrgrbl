@@ -32,10 +32,11 @@ class DXFViewer(PreviewBase):
         self.objects = dxfToObjects(drawing)
         self.operations = []
         self.selection = None
+        self.curOperation = None
         self.updateCursor()
     def getPen(self, item, is_virtual):
         if is_virtual:
-            pen = QtGui.QPen(QtGui.QColor(160, 160, 160), defaultTool.diameter * self.getScale())
+            pen = QtGui.QPen(QtGui.QColor(160, 160, 160), self.curOperation.tool.diameter * self.getScale())
             pen.setCapStyle(QtCore.Qt.RoundCap)
             pen.setJoinStyle(QtCore.Qt.RoundJoin)
             return pen
@@ -52,8 +53,10 @@ class DXFViewer(PreviewBase):
         #self.drawingPen.setCapStyle(QtCore.Qt.RoundCap)
         #self.drawingPen.setJoinStyle(QtCore.Qt.RoundJoin)
         for o in self.operations:
+            self.curOperation = o
             for n in o.previewPaths:
                 n.addToPath(self, self.drawingPath, True)
+        self.curOperation = None
         for o in self.objects:
             o.addToPath(self, self.drawingPath, False)
     def renderDrawing(self, qp):
