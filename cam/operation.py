@@ -17,6 +17,7 @@ class CAMOperation(object):
     def __init__(self, direction, parent, tool):
         self.zstart = float(defaultZStart)
         self.zend = float(defaultZEnd)
+        self.ztab = float(defaultZTab)
         self.direction = direction
         self.parent = parent
         self.tool = tool
