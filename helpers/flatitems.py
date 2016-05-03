@@ -416,15 +416,20 @@ def removeLoops(nodes):
                 sp = sorted(sp, lambda a, b: cmp(n.angdistp(a), n.angdistp(b)))
                 last = 0
                 dir = 1 if n.span > 0 else -1
+                lastp = n.start
                 for i in sp:
                     this = n.angdistp(i) * dir
                     arc = DrawingArc(n.centre, n.radius, n.sangle + last, this - last)
+                    arc.start = lastp
+                    arc.end = i
                     nodes2.append(arc)
                     splitpoints2.add(arc.start)
                     splitpoints2.add(arc.end)
+                    lastp = i
                     last = this
                 if last != n.span:
                     arc = DrawingArc(n.centre, n.radius, n.sangle + last, n.span - last)
+                    arc.start = lastp
                     nodes2.append(arc)
                     splitpoints2.add(arc.start)
                     splitpoints2.add(arc.end)
@@ -536,6 +541,8 @@ def offset(nodes, r):
             if (s < 0) == is_concave:
                 arc = DrawingArc.fromtangents(prev.end, this.start, prev.endAngle + math.pi / 2, this.startAngle + math.pi / 2)
                 if arc:
+                    arc.start = prev.end
+                    arc.end = this.start
                     nodes2.append(arc)
                 else:
                     nodes2.append(DrawingLine(prev.end, this.start))
