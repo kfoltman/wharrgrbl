@@ -288,7 +288,15 @@ def findOrientation(nodes):
 def reversed_nodes(nodes):
     return [i.reversed() for i in reversed(nodes)]
 
+traceOffsetCode = False
+removeCrossings = False
+checkBoundsInIntersections = False
+cacheWindingsValue = False
+useStraightLinesForWindings = False
+
 def intersections(d1, d2):
+    if checkBoundsInIntersections and not d1.bounds.intersects(d2.bounds):
+        return []
     if type(d1) is DrawingLine and type(d2) is DrawingLine:
         p = QtCore.QPointF()
         # a > 0 -> the d2 crosses d1 right to left
@@ -353,6 +361,8 @@ def removeLoops(nodes):
     orient = findOrientation(nodes)
     events = []
     splitpoints = {}
+    if traceOffsetCode:
+        print "Find intersections"
     for n in nodes:
         if type(n) is DrawingLine:
             splitpoints[n] = []
@@ -387,10 +397,13 @@ def removeLoops(nodes):
                     if p != e[2].start and p != e[2].end:
                         splitpoints[e[2]].append(p)
     nodes2 = []
+    splitpoints2 = set([])
     for n in nodes:
         sp = splitpoints[n]
         if sp:
             if type(n) is DrawingLine:
+                for i in sp:
+                    splitpoints2.add(i)
                 sp = sorted(sp, lambda a, b: cmp(pdist(a, n.start), pdist(b, n.start)))
                 last = n.start
                 for i in sp:
@@ -405,10 +418,16 @@ def removeLoops(nodes):
                 dir = 1 if n.span > 0 else -1
                 for i in sp:
                     this = n.angdistp(i) * dir
-                    nodes2.append(DrawingArc(n.centre, n.radius, n.sangle + last, this - last))
+                    arc = DrawingArc(n.centre, n.radius, n.sangle + last, this - last)
+                    nodes2.append(arc)
+                    splitpoints2.add(arc.start)
+                    splitpoints2.add(arc.end)
                     last = this
                 if last != n.span:
-                    nodes2.append(DrawingArc(n.centre, n.radius, n.sangle + last, n.span - last))
+                    arc = DrawingArc(n.centre, n.radius, n.sangle + last, n.span - last)
+                    nodes2.append(arc)
+                    splitpoints2.add(arc.start)
+                    splitpoints2.add(arc.end)
         else:
             nodes2.append(n)
     if not nodes2:
@@ -417,27 +436,48 @@ def removeLoops(nodes):
     sumAngle = 0
     points = {}
     nodes3 = []
+    if traceOffsetCode:
+        print "Count windings (%d, %d)" % (len(nodes2), len(splitpoints2))
+    windings = None
+    ichecks = 0
+    inochecks = 0
+    last = None
     for n in nodes2:
-        windings = 0
-        if type(n) is DrawingLine:
-            mid = interp(n.start, n.end, 0.5)
-        else:
-            mid = DrawingArc(n.centre, n.radius, n.sangle, n.span / 2).end
         if False:
             normal = circ(qpxy(0, 0), 1, tang(n.start, n.end) + math.pi / 2)
             l = DrawingLine(mid, mid + normal)
             nodes3.append(l)
-        normal = circ(qpxy(0, 0), 10000, tang(n.start, n.end) + math.pi / 2)
-        l = DrawingLine(mid, mid + normal)
-        for m in nodes2:
-            if n is m:
-                continue
-            for p, angle in intersections(l, m):
-                windings += sign(angle)
+        #normal = circ(qpxy(0, 0), 10000, tang(n.start, n.end) + math.pi / 2)
+        if not cacheWindingsValue or windings is None or n.start in splitpoints2 or n.start != last:
+            if type(n) is DrawingLine:
+                mid = interp(n.start, n.end, 0.5)
+            else:
+                mid = DrawingArc(n.centre, n.radius, n.sangle, n.span / 2).end
+            t = tang(n.start, n.end)
+            if useStraightLinesForWindings:
+                t += 3 * math.pi / 4
+                t -= (t % math.pi / 2)
+            else:
+                t += math.pi / 2
+            normal = circ(qpxy(0, 0), 10000, t)
+            l = DrawingLine(mid, mid + normal)
+            windings = 0
+            for m in nodes2:
+                if n is m:
+                    continue
+                if not m.bounds.intersects(l.bounds):
+                    inochecks += 1
+                    continue
+                ichecks += 1
+                for p, angle in intersections(l, m):
+                    windings += sign(angle)
+        last = n.end
         n.windings = windings
         if sign(windings) != orient:
             nodes3.append(n)
         #nodes3.append(n)
+    if traceOffsetCode:
+        print ichecks, inochecks
     return nodes3
 
 def offset(nodes, r):
@@ -452,6 +492,8 @@ def offset(nodes, r):
     rc = r if s > 0 else -r
     rd = r / abs(r)
     sp = s > 0
+    if traceOffsetCode:
+        print "Offset parts"
     for i in xrange(len(nodes)):
         prev = nodes[(i - 1) % len(nodes)]
         this = nodes[i]
@@ -467,6 +509,11 @@ def offset(nodes, r):
             if start != end:
                 newl = DrawingLine(start, end)
                 newl.orig_start = this.start
+                if removeCrossings and len(nodes2) > 0 and type(nodes2[-1]) is DrawingLine:
+                    isl = intersections(nodes2[-1], newl)
+                    if len(isl) == 1:
+                        nodes2[-1].end = isl[0][0]
+                        newl.start = isl[0][0]
                 nodes2.append(newl)
         if type(this) is DrawingArc:
             if (this.span < 0) != (s > 0):
@@ -477,6 +524,8 @@ def offset(nodes, r):
                 arc = DrawingArc(this.centre, newr, this.sangle, this.span)
                 arc.orig_start = this.start
                 nodes2.append(arc)
+    if traceOffsetCode:
+        print "Add missing segments"
     nodes = list(nodes2)
     nodes2 = []
     for i in xrange(len(nodes)):
@@ -494,6 +543,8 @@ def offset(nodes, r):
                 nodes2.append(DrawingLine(prev.end, this.orig_start))
                 nodes2.append(DrawingLine(this.orig_start, this.start))
         nodes2.append(this)
+    if traceOffsetCode:
+        print "Remove loops"
     nodes2 = removeLoops(nodes2)
     if len(nodes2) < 2:
         return []
