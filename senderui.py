@@ -283,7 +283,7 @@ class CNCPendant(QtGui.QGroupBox):
         self.modeWidget.setText(mode)
         self.commentWidget.setText(last_comment)
         self.jogger.setEnabled(self.grbl.canAcceptCommands(mode))
-        self.holdButton.setEnabled(canAcceptCommands)
+        self.holdButton.setEnabled(isConnected and mode != "Hold")
         self.resumeButton.setEnabled(mode == "Hold")
         def update(axis, pos):
             for i, a in enumerate(['X', 'Y', 'Z']):
