@@ -1,5 +1,26 @@
 from helpers.flatitems import *
 
+def fmtfloat(f):
+    fmt = '%g' % f
+    if 'e' in fmt:
+        return '%0.5f' % f
+    return fmt
+
+def gencode(**kwargs):
+    s = ''
+    for k in sorted(kwargs.keys(), key = lambda k: (k.upper() != 'G', k)):
+        v = kwargs[k]
+        if v is None:
+            continue
+        if len(s):
+            s += ' '
+        if hasattr(v, '__iter__'):
+            for item in v:
+                s += k.upper() + fmtfloat(item)
+        else:
+            s += k.upper() + fmtfloat(v)
+    return s
+
 class CAMTool(object):
     def __init__(self, diameter, feed, plunge, depth):
         self.diameter = float(diameter)
@@ -28,17 +49,16 @@ class CAMTool(object):
         return ops, last, lastz
     def plungeTo(self, z, lastz):
         if z < lastz:
-            return ["G1 F%f Z%f" % (self.plunge, z)]
+            return [gencode(G = 1, F = self.plunge, Z = z)]
         elif z > lastz:
-            return ["G0 Z%f" % (z)]
+            return [gencode(G = 0, Z = z)]
         else:
             return []
     def moveTo(self, pt, z, last, lastz):
-        if pt == last:
+        if pt == last and last is not None:
             return self.plungeTo(z, lastz)
-        return ["G0 Z%f" % self.clearance, "G0 X%f Y%f" % (pt.x(), pt.y())] + self.plungeTo(z, self.clearance)
+        return [gencode(G = 0, Z = self.clearance), gencode(G = [0], X = pt.x(), Y = pt.y())] + self.plungeTo(z, self.clearance)
     def lineTo(self, pt, z):
-        return ["G1 F%f X%f Y%f Z%f" % (self.feed, pt.x(), pt.y(), z)]
+        return [gencode(G = 1, F = self.feed, X = pt.x(), Y = pt.y(), Z = z)]
     def arc(self, last, pt, centre, clockwise, z):
-        return ["G%d F%f X%f Y%f I%f J%f Z%f" % (2 if clockwise else 3, self.feed, pt.x(), pt.y(), centre.x() - last.x(), centre.y() - last.y(), z)]
-
+        return [gencode(G = 2 if clockwise else 3, F = self.feed, X = pt.x(), Y = pt.y(), I = centre.x() - last.x(), J = centre.y() - last.y(), Z = z)]
