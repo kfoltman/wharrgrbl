@@ -543,9 +543,9 @@ def main():
         w.jobs.loadFile(sys.argv[1])
     w.show()
     retcode = app.exec_()
-    app = None
     w.disconnect()
     w = None
+    app = None
     if retcode != 0:
         sys.exit(retcode)
 
