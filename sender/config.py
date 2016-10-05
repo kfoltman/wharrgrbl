@@ -38,7 +38,7 @@ class Settings:
             return v if t else None
         def restoremacro(qs):
             return (str(qs.value("name").toString()), str(qs.value("command").toString()))
-        self.device = qs.value("serial/device", None).toString()
+        self.device = str(qs.value("serial/device", None).toString())
         if self.device == "":
             self.device = None
         self.speed, _ = qs.value("serial/speed", 115200).toInt()

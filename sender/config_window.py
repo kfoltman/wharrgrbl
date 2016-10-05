@@ -84,13 +84,13 @@ class AppConfigDialog(QtGui.QDialog):
             if device == Global.settings.device:
                 self.defaultDeviceIndex = self.comPorts.rowCount()
             self.comPorts.appendRow([QtGui.QStandardItem(device or "Autodetect"), QtGui.QStandardItem(name)])
-
         self.initUI()
         self.setWindowTitle("Wharrgrbl configuration")
     def initUI(self):
         layout = QtGui.QFormLayout()
         self.comboPorts = QtGui.QComboBox()
         self.comboPorts.setModel(self.comPorts)
+        self.comboPorts.setCurrentIndex(self.defaultDeviceIndex)
         self.labelPortName = QtGui.QLabel()
         self.gcodeDirectory = QtGui.QLineEdit()
         self.gcodeDirectoryButton = QtGui.QPushButton("Select")
@@ -122,10 +122,15 @@ class AppConfigDialog(QtGui.QDialog):
             self.gcodeDirectory.setText(newdir)
     def updatePortName(self, i):
         self.labelPortName.setText("%s" % self.comPorts.data(self.comPorts.index(i, 1)).toString())
+        dev = str(self.comPorts.data(self.comPorts.index(i, 0)).toString())
+        if dev == "Autodetect":
+            dev = None
+        self.selectedDevice = dev
     def showEvent(self, e):
         #self.tableView.setFocus()
         #self.add(self.tableView)
         pass
     def save(self):
         Global.settings.gcode_directory = self.gcodeDirectory.text()
+        Global.settings.device = self.selectedDevice
         Global.settings.save()
