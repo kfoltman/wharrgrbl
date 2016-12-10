@@ -106,6 +106,9 @@ class GrblModernVersion(GrblVersion):
                     cooked[kw] = value
                 else:
                     cooked[kw] = map(float, value.split(","))
+            if ':' in status:
+                status, substatus = status.split(":", 1)
+                cooked['Substatus'] = substatus
             #print status, cooked
             if 'WCO' in cooked:
                 self.wco = cooked['WCO']
