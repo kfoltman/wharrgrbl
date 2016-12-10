@@ -38,8 +38,14 @@ class CNCJogger(QtGui.QGroupBox):
             self.handleButton('Z', 1)
         elif e.key() == QtCore.Qt.Key_PageDown:
             self.handleButton('Z', -1)
-        elif e.key() == QtCore.Qt.Key_End:
+        elif e.key() == QtCore.Qt.Key_End or e.key() == QtCore.Qt.Key_Clear:
             self.cancelJog()
+        elif e.key() == QtCore.Qt.Key_0:
+            self.grbl.grbl.feed_reset()
+        elif e.key() == QtCore.Qt.Key_BracketRight:
+            self.grbl.grbl.feed_add10()
+        elif e.key() == QtCore.Qt.Key_BracketLeft:
+            self.grbl.grbl.feed_sub10()
         else:
             return False
         return True
@@ -122,6 +128,7 @@ class CNCJogger(QtGui.QGroupBox):
 class HistoryLineEdit(QtGui.QLineEdit):
     def __init__(self, history):
         QtGui.QLineEdit.__init__(self)
+        self.jogger = None
         self.history = history
         self.history_cursor = 0
         self.history.rowsInserted.connect(self.onHistoryRowsInserted)
@@ -144,6 +151,8 @@ class HistoryLineEdit(QtGui.QLineEdit):
             else:
                 QtGui.QLineEdit.keyPressEvent(self, e)
         else:
+            if self.jogger and self.jogger.checkKeyPressEvent(e):
+                return
             QtGui.QLineEdit.keyPressEvent(self, e)
 
 class CNCPendant(QtGui.QGroupBox):
@@ -264,6 +273,7 @@ class CNCPendant(QtGui.QGroupBox):
         grid.addWidget(widget, 1, 0)
 
         self.jogger = CNCJogger(self.grbl)
+        self.cmdWidget.jogger = self.jogger
         grid.addWidget(self.jogger, 1, 2, 1, 1)
         self.macros = QtGui.QHBoxLayout()
         for name, command in Global.settings.macros:
