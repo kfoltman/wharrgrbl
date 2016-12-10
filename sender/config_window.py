@@ -68,7 +68,9 @@ class MachineConfigDialog(QtGui.QDialog):
     def __init__(self, config_model):
         QtGui.QDialog.__init__(self)
         self.setWindowTitle("Grbl configuration")
+        layout = QtGui.QVBoxLayout(self)
         self.tableView = ConfigTableView(self, config_model)
+        layout.addWidget(self.tableView)
     def showEvent(self, e):
         self.tableView.setFocus()
         #self.add(self.tableView)
