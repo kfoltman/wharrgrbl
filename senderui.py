@@ -134,12 +134,12 @@ class HistoryLineEdit(QtGui.QLineEdit):
             if e.key() == QtCore.Qt.Key_Up:
                 if self.history_cursor > 0:
                     self.history_cursor -= 1
-                    self.setText(self.history.data(self.history.index(self.history_cursor, 0), QtCore.Qt.DisplayRole))
+                    self.setText(self.history.getHistoryCmd(self.history_cursor))
                     self.selectAll()
             elif e.key() == QtCore.Qt.Key_Down:
                 if self.history_cursor < self.history.rowCount(QtCore.QModelIndex()) - 1:
                     self.history_cursor += 1
-                    self.setText(self.history.data(self.history.index(self.history_cursor, 0), QtCore.Qt.DisplayRole))
+                    self.setText(self.history.getHistoryCmd(self.history_cursor))
                     self.selectAll()
             else:
                 QtGui.QLineEdit.keyPressEvent(self, e)

@@ -26,11 +26,19 @@ class GcodeJobModel(QtCore.QAbstractTableModel):
         self.exec_stack = []
         self.history_pos = 0
         self.running = False
+    def toVis(self, cmd):
+        return cmd.replace("\x85", "<Jog cancel>")
+    def toHist(self, cmd):
+        return cmd.replace("\x85", "")
+    def getHistoryCmd(self, pos):
+        if pos < len(self.commands):
+            return self.toHist(self.commands[pos].command)
+        return ""
     def data(self, index, role):
         if role == QtCore.Qt.DisplayRole:
             if index.row() < len(self.commands):
                 if index.column() == 0:
-                    return self.commands[index.row()].command
+                    return self.toVis(self.commands[index.row()].command)
                 else:
                     return self.commands[index.row()].status
         return None
