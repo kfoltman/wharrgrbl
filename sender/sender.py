@@ -59,14 +59,14 @@ class GrblModernVersion(GrblVersion):
         }
     def process_status(self, parent, response):
         if response[0] == '<' and response[-1] == '>':
-            print response
+            #print response
             status, params = response[1:-1].split("|", 1)
             cooked = {}
             for param in params.split("|"):
                 for kw, value in re.findall(r'([A-Za-z]+):([0-9.,-]+)', param):
                     value = value.rstrip(',')
                     cooked[kw] = map(float, value.split(","))
-            print status, cooked
+            #print status, cooked
             if 'WCO' in cooked:
                 self.wco = cooked['WCO']
                 del cooked['WCO']
