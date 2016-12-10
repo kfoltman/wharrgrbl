@@ -18,7 +18,7 @@ class CNCJogger(QtGui.QGroupBox):
     steps_changed = QtCore.pyqtSignal([])
     def __init__(self, grbl):
         QtGui.QGroupBox.__init__(self)
-        self.setTitle("Jogging (Alt+arrows/PgUp/PgDn)")
+        self.setTitle("Jogging (Alt+arrows/PgUp/PgDn, End to cancel)")
         self.grbl = grbl
         self.distxy = 10
         self.distz = 1
@@ -38,6 +38,8 @@ class CNCJogger(QtGui.QGroupBox):
             self.handleButton('Z', 1)
         elif e.key() == QtCore.Qt.Key_PageDown:
             self.handleButton('Z', -1)
+        elif e.key() == QtCore.Qt.Key_End:
+            self.cancelJog()
         else:
             return False
         return True
@@ -68,6 +70,8 @@ class CNCJogger(QtGui.QGroupBox):
             self.grbl.jogTo("G91 %s%s" % (axis, m))
         else:
             self.grbl.jogTo("G91 %s%s" % (axis, m), feed = s)
+    def cancelJog(self):
+        self.grbl.jogTo("")
     def handleSteps(self, var, dist):
         setattr(self, var, dist)
         self.steps_changed.emit()
@@ -76,7 +80,7 @@ class CNCJogger(QtGui.QGroupBox):
         self.setLayout(layout)
         self.makeButton("Y+", layout, 0, 1)
         self.makeButton("X-", layout, 1, 0)
-        self.makeButton("", layout, 1, 1, iconId = 59, fn = lambda: self.grbl.jogTo(""))
+        self.makeButton("", layout, 1, 1, iconId = 59, fn = self.cancelJog)
         self.makeButton("X+", layout, 1, 2)
         self.makeButton("Y-", layout, 2, 1)
         self.makeButton("Z+", layout, 0, 6)
