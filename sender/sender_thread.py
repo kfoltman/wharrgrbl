@@ -20,6 +20,7 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
             self.line_received.emit(line)
         return sender.GrblStateMachine.handle_line(self, line)
     def process_cooked_status(self, mode, args):
+        self.last_status = time.time()
         extra = self.current_status[3]
         if mode != self.current_status[0]:
             extra = None
