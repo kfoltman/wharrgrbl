@@ -311,6 +311,7 @@ class CNCPendant(QtGui.QGroupBox):
     def onMachineResume(self):
         self.grbl.grbl.restart()
     def onMachineSoftReset(self):
+        self.grbl.job.cancel()
         self.grbl.grbl.soft_reset()
     def onMachineKillAlarm(self):
         self.grbl.sendLine('$X')
