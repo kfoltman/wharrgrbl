@@ -156,10 +156,12 @@ class CNCPendant(QtGui.QGroupBox):
         self.grbl.status.connect(self.onStatus)
         self.grbl.line_received.connect(self.onLineReceived)
         self.cmdHistory = []
-        
+
     def keyPressEvent(self, e):
         if e.key() == QtCore.Qt.Key_Return or e.key() == QtCore.Qt.Key_Enter:
             self.cmdButton.animateClick()
+        if e.key() == QtCore.Qt.Key_Escape:
+            self.cmdWidget.setFocus()
         if e.modifiers() & QtCore.Qt.AltModifier:
             if self.jogger.checkKeyPressEvent(e):
                 return
@@ -233,9 +235,17 @@ class CNCPendant(QtGui.QGroupBox):
             label.setScaledContents(False)
             label.setFont(Global.fonts.bigBoldFont)
             layout.addWidget(label, index + 1, 0, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-            coordWidget = QtGui.QLabel("-")
+            coordWidget = QtGui.QPushButton("-")
+            coordWidget.setFlat(True)
             coordWidget.setFont(Global.fonts.bigBoldFont)
-            coordWidget.setAlignment(alignment)
+            #coordWidget.setAlignment(alignment)
+            def mkLocal(axis, coordWidget):
+                def returnPressedFunc():
+                    newValue, ok = QtGui.QInputDialog.getDouble(self, "Reset %s axis" % axis, "New current position", float(coordWidget.text()), -10000, 10000, 2)
+                    if ok:
+                        self.zeroAxis(axis, newValue)
+                return returnPressedFunc
+            coordWidget.clicked.connect(mkLocal(axis, coordWidget))
             layout.addWidget(coordWidget, index + 1, 1)
             self.workWidgets[axis] = coordWidget
             zeroWidget = QtGui.QPushButton("0")
@@ -266,8 +276,8 @@ class CNCPendant(QtGui.QGroupBox):
         
         self.setLayout(grid)
 
-    def zeroAxis(self, axis):
-        self.grbl.sendLine('G90 G10 L20 P0 %s0' % axis)
+    def zeroAxis(self, axis, newValue = 0):
+        self.grbl.sendLine('G90 G10 L20 P0 %s%s' % (axis, newValue))
         
     def onTableDataChanged(self, topleft, bottomright):
         if bottomright.row() > self.tableMax:
@@ -293,6 +303,8 @@ class CNCPendant(QtGui.QGroupBox):
         self.resetButton.setEnabled(isConnected and mode != "Alarm")
         self.killAlarmButton.setEnabled(isConnected and mode == "Alarm")
         self.cmdButton.setEnabled(canAcceptCommands)
+        for w in self.workWidgets.values():
+            w.setEnabled(mode == "Idle")
         for i in range(self.macros.count()):
             self.macros.itemAt(i).widget().setEnabled(canAcceptCommands)
         if extra is not None:
