@@ -24,6 +24,8 @@ class GrblClassicVersion(GrblVersion):
             parent.process_cooked_status(status, cooked)
         else:
             raise ValueError, "Malformed status: %s" % response
+    def parse_error(self, inp):
+        return inp[7:]
     def parse_variable_value(self, inp):
         var, value = inp.split('=', 1)
         comment = ''
@@ -57,6 +59,40 @@ class GrblModernVersion(GrblVersion):
             8 : "Homing fail - pull-off failed",
             9 : "Homing fail - no switch",
         }
+        self.errors = {
+            1 : "No G-code letter",
+            2 : "Bad numeric format",
+            3 : "Bad $ command",
+            4 : "Expected +ve value",
+            5 : "Homing disabled",
+            6 : "Step pulse must be >3us",
+            7 : "EEPROM read failed",
+            8 : "$ requires idle",
+            9 : "Alarm lock out",
+            10 : "Soft limits require homing",
+            11 : "Too many chars",
+            12 : "Step rate too high",
+            13 : "Safety opened",
+            14 : "EEPROM line too long",
+            15 : "Jog out of limits",
+            16 : "Jog invalid",
+            22 : "Feed rate invalid",
+            23 : "Integer expected",
+            24 : "Conflicting commands",
+            25 : "Duplicate word",
+            26 : "XYZ required",
+            27 : "N invalid",
+            28 : "P or L required",
+            29 : ".1 coord not supported",
+            30 : "Only G0/G1 supported",
+            31 : "Unused XYZ",
+            32 : "G2/G3 without XYZ",
+            33 : "Invalid target",
+            34 : "Invalid arc",
+            35 : "G2/G3 without IJK",
+            36 : "Unused words",
+            37 : "TLO in wrong axis",
+        }
     def process_status(self, parent, response):
         if response[0] == '<' and response[-1] == '>':
             #print response
@@ -80,6 +116,12 @@ class GrblModernVersion(GrblVersion):
             vv = int(var[1:])
             comment = self.config_legend[vv] if vv in self.config_legend else ''
         return var, value, comment
+    def parse_error(self, inp):
+        try:
+            alvalue = int(inp[6:])
+            return self.errors[alvalue]
+        except:
+            return "Error %s" % inp[6:]
     def parse_alarm(self, inp):
         try:
             alvalue = int(inp[6:])
@@ -156,7 +198,7 @@ class GrblStateMachine:
             return True
         if inp.startswith('error:'):
             print "Error Pop: %s, %s" % (self.outqueue[0], inp)
-            self.error(self.outqueue[0][0], self.outqueue[0][1], inp[7:])
+            self.error(self.outqueue[0][0], self.outqueue[0][1], self.version.parse_error(inp))
             self.outqueue.pop(0)
             return True
         if inp == '':
