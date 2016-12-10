@@ -36,6 +36,8 @@ class GrblClassicVersion(GrblVersion):
         return var, value, comment
     def parse_alarm(self, inp):
         return inp[7:]
+    def jog_cmd(self, line):
+        return "G0 %s" % line
 
 class GrblModernVersion(GrblVersion):
     def __init__(self, name):
@@ -133,6 +135,13 @@ class GrblModernVersion(GrblVersion):
             return self.alarms[alvalue]
         except:
             return "Unknown alarm"
+    def jog_cmd(self, line, feed = None):
+        if line == "":
+            # a no-op with cancel
+            return "\x85$J=G91F1X0Y0"
+        if feed is None:
+            feed = 3000
+        return "\x85$J=F%s %s" % (feed, line)
 
 def create_grbl_version(version):
     if version.startswith("1."):
@@ -175,7 +184,6 @@ class GrblStateMachine:
                 words = inp.split(" ", 2)
                 if len(words) == 3:
                     self.version = create_grbl_version(words[1])
-                    print "Version: %s" % self.version
                     self.banner_time = None
                     self.outqueue[:] = []
                     self.position_queries = 0

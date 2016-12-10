@@ -325,7 +325,8 @@ class JobPreviewWindow(QtGui.QDialog):
         self.yLabel.setText("%0.3f" % y)
     def onPreviewClicked(self, x, y):
         if self.preview.actionMode == 1:
-            self.grbl.sendLine("G90 G0 X%0.3f Y%0.3f" %  (x, y))
+            self.grbl.jogTo("G90 X%0.3f Y%0.3f" % (x, y))
+            #self.grbl.sendLine("G90 G0 X%0.3f Y%0.3f" %  (x, y))
     def onSpindleMoved(self, x, y, z):
         self.preview.spindlePos = (x, y, z)
         self.preview.repaint()

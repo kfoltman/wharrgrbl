@@ -41,11 +41,18 @@ class CNCJogger(QtGui.QGroupBox):
         else:
             return False
         return True
-    def makeButton(self, name, layout, locx, locy):
-        button = QtGui.QPushButton(name)
-        button.setFont(Global.fonts.bigBoldFont)
-        button.setMaximumWidth(QtGui.QFontMetrics(button.font()).width(name.replace("-", "+")) + 10)
-        button.clicked.connect(lambda: self.handleButton(name[0], 1 if name[1] == '+' else -1))
+    def makeButton(self, name, layout, locx, locy, fn = None, iconId = None):
+        if iconId is not None:
+            icon = QtGui.QApplication.style().standardIcon(iconId)
+            button = QtGui.QPushButton(icon, name)
+        else:
+            button = QtGui.QPushButton(name)
+            button.setFont(Global.fonts.bigBoldFont)
+            button.setMaximumWidth(QtGui.QFontMetrics(button.font()).width(name.replace("-", "+")) + 10)
+        if fn is None:
+            button.clicked.connect(lambda: self.handleButton(name[0], 1 if name[1] == '+' else -1))
+        else:
+            button.clicked.connect(fn)
         button.setFocusPolicy(QtCore.Qt.NoFocus)
         layout.addWidget(button, locx, locy)
     def handleButton(self, axis, dist):
@@ -58,9 +65,9 @@ class CNCJogger(QtGui.QGroupBox):
         if QtGui.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier:
             m *= 10
         if s is None:
-            self.grbl.sendLine("G91 G0 %s%s" % (axis, m))
+            self.grbl.jogTo("G91 %s%s" % (axis, m))
         else:
-            self.grbl.sendLine("G91 G1 F%s %s%s" % (s, axis, m))
+            self.grbl.jogTo("G91 %s%s" % (axis, m), feed = s)
     def handleSteps(self, var, dist):
         setattr(self, var, dist)
         self.steps_changed.emit()
@@ -69,6 +76,7 @@ class CNCJogger(QtGui.QGroupBox):
         self.setLayout(layout)
         self.makeButton("Y+", layout, 0, 1)
         self.makeButton("X-", layout, 1, 0)
+        self.makeButton("", layout, 1, 1, iconId = 59, fn = lambda: self.grbl.jogTo(""))
         self.makeButton("X+", layout, 1, 2)
         self.makeButton("Y-", layout, 2, 1)
         self.makeButton("Z+", layout, 0, 6)
