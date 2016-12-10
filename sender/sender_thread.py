@@ -1,4 +1,5 @@
 from PyQt4 import QtCore, QtGui
+import re
 import sender
 import time
 from config import *
