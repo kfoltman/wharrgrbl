@@ -286,6 +286,33 @@ class GrblStateMachine:
         if self.banner_time is None and (self.position_queries <= 0):
             self.position_queries = 0
             self.ask_for_status()
+    def feed_reset(self):
+        self.reader.write('\x90')
+    def feed_add10(self):
+        self.reader.write('\x91')
+    def feed_sub10(self):
+        self.reader.write('\x92')
+    def feed_add1(self):
+        self.reader.write('\x93')
+    def feed_sub1(self):
+        self.reader.write('\x94')
+    def rapid_100(self):
+        self.reader.write('\x95')
+    def rapid_50(self):
+        self.reader.write('\x96')
+    def rapid_25(self):
+        self.reader.write('\x97')
+    def safety(self):
+        self.reader.write('\x84')
+    def toggle_spindle_stop(self):
+        self.reader.write('\x9E')
+    def toggle_flood(self):
+        self.reader.write('\xA0')
+    def toggle_mist(self):
+        # Note: disabled by default
+        self.reader.write('\xA1')
+    def cancel_jog(self):
+        self.reader.write('\x85')
     def pause(self):
         self.reader.write('!')
     def restart(self):
