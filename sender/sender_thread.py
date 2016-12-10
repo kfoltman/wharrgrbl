@@ -13,6 +13,12 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         self.config_model = config_model
         self.history_model = history_model
         self.job_model = None
+        self.last_feed = None
+        self.last_speed = None
+        self.accessories = ""
+        self.overrides = [100, 100, 100]
+        self.inputs = ""
+        self.pins = ""
         self.current_status = ('Initialized', {}, '', None)
         sender.GrblStateMachine.__init__(self, Global.settings.device, Global.settings.speed)
     def handle_line(self, line):
@@ -20,6 +26,14 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
             self.line_received.emit(line)
         return sender.GrblStateMachine.handle_line(self, line)
     def process_cooked_status(self, mode, args):
+        if 'F' in args:
+            self.last_feed = int(args['F'])
+        if 'FS' in args:
+            self.last_feed, self.last_speed = map(float, args['FS'])
+        if 'Ov' in args:
+            self.overrides = args['Ov']
+            self.accessories = args.get('A', '')
+        self.pins = args.get('Pn', '')
         self.last_status = time.time()
         extra = self.current_status[3]
         if mode != self.current_status[0]:

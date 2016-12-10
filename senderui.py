@@ -155,6 +155,7 @@ class CNCPendant(QtGui.QGroupBox):
     def initUI(self):        
         cmdLayout = QtGui.QHBoxLayout()
         statusLayout = QtGui.QHBoxLayout()
+        commentLayout = QtGui.QHBoxLayout()
 
         self.cmdWidget = HistoryLineEdit(self.grbl.history)
         cmdLayout.addWidget(self.cmdWidget)
@@ -175,7 +176,11 @@ class CNCPendant(QtGui.QGroupBox):
         self.resumeButton = addButton("Resume", self.onMachineResume)
         self.resetButton = addButton("Soft Reset", self.onMachineSoftReset)
         self.killAlarmButton = addButton("Kill Alarm", self.onMachineKillAlarm)
+        
         self.commentWidget = QtGui.QLabel("")
+        commentLayout.addWidget(self.commentWidget)
+        self.feedSpeedWidget = QtGui.QLabel("")
+        commentLayout.addWidget(self.feedSpeedWidget)
 
         self.workWidgets = {}
         self.machineWidgets = {}
@@ -199,7 +204,7 @@ class CNCPendant(QtGui.QGroupBox):
         layout.addRow(self.tableview)
         layout.addRow("Command:", cmdLayout)
         layout.addRow("Status:", statusLayout)
-        layout.addRow("Last comment:", self.commentWidget)
+        layout.addRow("Last comment:", commentLayout)
         grid.addLayout(layout, 0, 0, 1, 3)
         
         layout = QtGui.QGridLayout()
@@ -282,6 +287,33 @@ class CNCPendant(QtGui.QGroupBox):
             mode = "%s - %s" % (mode, extra)
         self.modeWidget.setText(mode)
         self.commentWidget.setText(last_comment)
+        if self.grbl.grbl:
+            g = self.grbl.grbl
+            fs = []
+            if g.last_feed:
+                fs.append("Feed: %s" % g.last_feed)
+            if g.last_speed:
+                fs.append("RPM: %s" % g.last_speed)
+            if g.accessories != '':
+                accNames = {
+                    'S' : "Fwd",
+                    'C' : "Rev",
+                    'F' : "Flood",
+                    'M' : "Mist",
+                }
+                for a in g.accessories:
+                    fs.append(accNames[a])
+            if g.overrides != [100, 100, 100]:
+                fs.append("Ov: %s" % g.overrides)
+            if g.pins != "":
+                accNames = {
+                    'S' : "Start",
+                    'D' : "Door",
+                    'H' : "Hold",
+                    'R' : "Reset",
+                }
+                fs.append("Pins: %s" % "".join(accNames[pin] for pin in g.pins))
+            self.feedSpeedWidget.setText(" | ".join(fs))
         self.jogger.setEnabled(self.grbl.canAcceptCommands(mode))
         self.holdButton.setEnabled(isConnected and mode != "Hold")
         self.resumeButton.setEnabled(mode == "Hold")

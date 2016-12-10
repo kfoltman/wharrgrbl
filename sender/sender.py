@@ -95,18 +95,23 @@ class GrblModernVersion(GrblVersion):
         }
     def process_status(self, parent, response):
         if response[0] == '<' and response[-1] == '>':
-            #print response
-            status, params = response[1:-1].split("|", 1)
+            params = response[1:-1].split("|")
+            status = params.pop(0)
             cooked = {}
-            for param in params.split("|"):
-                for kw, value in re.findall(r'([A-Za-z]+):([0-9.,-]+)', param):
-                    value = value.rstrip(',')
+            for param in params:
+                kw, value = param.split(":", 1)
+                if kw == 'A' or kw == 'Pn':
+                    cooked[kw] = value
+                else:
                     cooked[kw] = map(float, value.split(","))
             #print status, cooked
             if 'WCO' in cooked:
                 self.wco = cooked['WCO']
                 del cooked['WCO']
-            cooked['WPos'] = [cooked['MPos'][i] - self.wco[i] for i in xrange(3)]
+            if 'MPos' in cooked and 'WPos' not in cooked:
+                cooked['WPos'] = [cooked['MPos'][i] - self.wco[i] for i in xrange(3)]
+            if 'WPos' in cooked and 'MPos' not in cooked:
+                cooked['MPos'] = [cooked['WPos'][i] + self.wco[i] for i in xrange(3)]
             parent.process_cooked_status(status, cooked)
         else:
             raise ValueError, "Malformed status: %s" % response
