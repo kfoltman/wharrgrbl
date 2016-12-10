@@ -183,9 +183,9 @@ class GrblInterface(QtCore.QThread):
         # XXXKF convert to cond-variables at some point
         while len(self.task_queue) > 0:
             time.sleep(0.01)
-    def jogTo(self, line):
+    def jogTo(self, line, feed = None):
         if self.grbl is not None:
-            self.sendLine(self.grbl.version.jog_cmd(line))
+            self.sendLine(self.grbl.version.jog_cmd(line, feed))
         else:
             raise ValueError("connection not established")
     def sendLine(self, line):
