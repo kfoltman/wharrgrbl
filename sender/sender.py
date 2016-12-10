@@ -212,6 +212,11 @@ class GrblStateMachine:
             if ':' in inp:
                 par, values = inp[1:-1].split(":", 1)
                 self.handle_gcode_parameter(par, values.strip())
+                if par == 'MSG' and values == 'Disabled':
+                    # Note: this is slightly defective (should wait for the 'ok')
+                    self.confirm(*self.outqueue[0])
+                    self.last_cmd = self.outqueue.pop(0)
+                    self.wait_for_banner(False)
             else:
                 self.handle_gcode_state(inp[1:-1].split(" "))
             return True
