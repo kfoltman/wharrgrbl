@@ -16,7 +16,7 @@ class GrblClassicVersion(GrblVersion):
         GrblVersion.__init__(self, name)
     def process_status(self, parent, response):
         if response[0] == '<' and response[-1] == '>':
-            status, params = response[1:-1].split("|", 1)
+            status, params = response[1:-1].split(",", 1)
             cooked = {}
             for kw, value in re.findall(r'([A-Za-z]+):([0-9.,-]+)', params):
                 value = value.rstrip(',')
@@ -36,8 +36,11 @@ class GrblClassicVersion(GrblVersion):
         return var, value, comment
     def parse_alarm(self, inp):
         return inp[7:]
-    def jog_cmd(self, line):
-        return "G0 %s" % line
+    def jog_cmd(self, line, feed = None):
+        if feed is None:
+            return "G0 %s" % line
+        else:
+            return "G1 F%s %s" % (feed, line)
 
 class GrblModernVersion(GrblVersion):
     def __init__(self, name):
