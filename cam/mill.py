@@ -304,6 +304,72 @@ def profile_mill(gc, xs, ys, xe, ye, reqdia, operation):
                 radius = (reqdia - endmill_dia) / 2.0
     gc.get_safe()
 
+def cmpguess(g1, g2, tol = 0.02, stol = 0.1):
+    if g1 is None or g2 is None:
+        return False
+    c1, r1, s1 = g1
+    c2, r2, s2 = g2
+    d = QtCore.QLineF(c1, c2)
+    if d.length() > tol:
+        return False
+    dr = abs(r1 - r2)
+    if dr > tol:
+        return False
+    if max(s1, s2) > max(stol, 2 * math.pi * max(r1, r2) / 5):
+        return False
+    return True
+
+def calign(pt, cx, cy, r):
+    x, y = pt
+    angle = math.atan2(y - cy, x - cx)
+    return (cx + r * math.cos(angle), cy + r * math.sin(angle))
+
+def path_to_optimized_gcode(gc, points):
+    guesses = []
+    for i in xrange(len(points)):
+        if i + 2 >= len(points):
+            guesses.append(None)
+            continue
+        p1 = QtCore.QPointF(*points[i])
+        p2 = QtCore.QPointF(*points[i + 1])
+        p3 = QtCore.QPointF(*points[i + 2])
+        l1 = QtCore.QLineF(p1, p2)
+        l2 = QtCore.QLineF(p2, p3)
+        n1 = l1.normalVector().translated(l1.dx() / 2, l1.dy() / 2)
+        n2 = l2.normalVector().translated(l2.dx() / 2, l2.dy() / 2)
+        centre = QtCore.QPointF(0, 0)
+        if n1.intersect(n2, centre) > 0:
+            r = QtCore.QLineF(p1, centre).length()
+            step = max(l1.length(), l2.length())
+            if r > 0.1:
+                guesses.append((centre, r, step))
+            else:
+                guesses.append(None)
+        else:
+            guesses.append(None)
+    gc.move_to(points[0][0], points[0][1])
+    i = 1
+    while i < len(points):
+        p = points[i]
+        if i + 1 < len(points) and cmpguess(guesses[i - 1], guesses[i]):
+            j = i
+            while j < len(points) and cmpguess(guesses[i - 1], guesses[j + 1]):
+                j += 1
+            # (i - 1, i, i + 1) =~ ... =~ (j, j + 1, j + 2)
+            cx = sum([guesses[k][0].x() for k in range(i - 1, j)]) / (j - i + 1)
+            cy = sum([guesses[k][0].y() for k in range(i - 1, j)]) / (j - i + 1)
+            r = sum([guesses[k][1] for k in range(i - 1, j)]) / (j - i + 1)
+            start = calign(points[i - 1], cx, cy, r)
+            end = calign(points[j + 2], cx, cy, r)
+            gc.arc_cw_to(x = end[0], y = end[1], i = cx - start[0], j = cy - start[1])
+            #print "G2 X%0.4f Y%0.4f I%0.4f J%0.4f" % (end[0], end[1], cx - start[0], cy - start[1])
+            #print "Arc to: %s centre: %s" % (points[j], (cx, cy))
+            i = j + 3
+        else:
+            gc.line_to(points[i][0], points[i][1])
+            i += 1
+    gc.line_to(points[0][0], points[0][1])
+
 def mill_contours(gc, board, layer, milling_params):
     operation = gc.operation
     view = ViewParams(ymirror = True)
@@ -331,10 +397,7 @@ def mill_contours(gc, board, layer, milling_params):
         gc.zdepth = depth
         gc.get_safe()
         for p in pathlist:
-            gc.move_to(p[0][0], p[0][1])
-            for pt in p[1:]:
-                gc.line_to(pt[0], pt[1])
-            gc.line_to(p[0][0], p[0][1])
+            path_to_optimized_gcode(gc, p)
 
 def drill_holes_and_slots(gc, board, layer, milling_params):
     operation = gc.operation

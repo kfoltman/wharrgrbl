@@ -108,9 +108,10 @@ class GcodeOutputBase:
         self.move_z(self.zdepth)
         self.emit_feed(self.get_feed())
         self.write("G1X%0.3fY%0.3f" % (self.grid * x, self.grid * y))
-    def arc_cw_to(self, x, y, i, j, feed):
+    def arc_cw_to(self, x, y, i, j, feed = None):
         self.move_z(self.zdepth)
-        self.emit_feed(feed)
+        if feed is not None:
+            self.emit_feed(feed)
         self.write("G2X%0.3fY%0.3fI%0.3fJ%0.3f" % (x, y, i, j))
     def arc_ccw_to(self, x, y, i, j, feed):
         self.move_z(self.zdepth)
