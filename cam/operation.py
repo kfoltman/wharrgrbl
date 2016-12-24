@@ -35,7 +35,7 @@ class CAMOperation(object):
             s += "profile"
         elif self.direction == ShapeDirection.INSIDE:
             s += "cutout"
-        s += ": " + type(self.parent).__name__.replace("Drawing", "")
+        s += ": " + self.parent.typeName()
         return s
     def generateFullPaths(self):
         if self.direction == ShapeDirection.OUTLINE:
@@ -81,3 +81,36 @@ class CAMOperation(object):
                         paths.append(c)
         return paths
 
+class CAMOperationItem(QStandardItem):
+    def __init__(self, operation):
+        QStandardItemModel.__init__(self, operation.description())
+        self.operation = operation
+
+class StandardModelIterator:
+    def __init__(self, model, itemFn = None):
+        self.model = model
+        self.i = 0
+        self.itemFn = itemFn
+    def __iter__(self):
+        return self
+    def next(self):
+        if self.i < self.model.rowCount():
+            self.i += 1
+            if self.itemFn:
+                return self.itemFn(self.model.item(self.i - 1))
+            else:
+                return self.model.item(self.i - 1)
+        else:
+            raise StopIteration()
+
+class CAMOperationsModel(QStandardItemModel):
+    def __init__(self):
+        QStandardItemModel.__init__(self)
+    def addOperation(self, op):
+        self.appendRow(CAMOperationItem(op))
+    def delOperations(self, fn):
+        for i in xrange(self.rowCount() - 1, -1, -1):
+            if fn(self.item(i).operation):
+                self.removeRow(i)
+    def __iter__(self):
+        return StandardModelIterator(self, lambda smi: smi.operation)
