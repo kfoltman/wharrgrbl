@@ -6,14 +6,14 @@ def dxfToObjects(drawing):
     for i in drawing.entities.get_entities():
         it = type(i)
         if it is dxfgrabber.entities.Circle:
-            objects.append(DrawingCircle(QtCore.QPointF(i.center[0], i.center[1]), i.radius))
+            objects.append(DrawingCircle(QPointF(i.center[0], i.center[1]), i.radius))
         elif it is dxfgrabber.entities.Arc:
             if i.endangle > i.startangle:
-                objects.append(DrawingArc(QtCore.QPointF(i.center[0], i.center[1]), i.radius, i.endangle * math.pi / 180.0, (i.startangle - i.endangle) * math.pi / 180.0))
+                objects.append(DrawingArc(QPointF(i.center[0], i.center[1]), i.radius, i.endangle * math.pi / 180.0, (i.startangle - i.endangle) * math.pi / 180.0))
             else:
-                objects.append(DrawingArc(QtCore.QPointF(i.center[0], i.center[1]), i.radius, i.startangle * math.pi / 180.0, twopi + (i.endangle - i.startangle) * math.pi / 180.0))
+                objects.append(DrawingArc(QPointF(i.center[0], i.center[1]), i.radius, i.startangle * math.pi / 180.0, twopi + (i.endangle - i.startangle) * math.pi / 180.0))
         elif it is dxfgrabber.entities.Line:
-            objects.append(DrawingLine(QtCore.QPointF(i.start[0], i.start[1]), QtCore.QPointF(i.end[0], i.end[1])))
+            objects.append(DrawingLine(QPointF(i.start[0], i.start[1]), QPointF(i.end[0], i.end[1])))
         elif it is dxfgrabber.entities.LWPolyline:
             nodes = []
             points = []
@@ -40,11 +40,11 @@ def dxfToObjects(drawing):
                     ym = ym0 + c * math.cos(a)
                     sangle = math.atan2(p1[1] - ym, p1[0] - xm)
                     span = theta
-                    nodes.append(DrawingArc(QtCore.QPointF(xm, ym), r, sangle, span))
+                    nodes.append(DrawingArc(QPointF(xm, ym), r, sangle, span))
                     #self.drawArcImpl(xm, ym, 0, 0, r, sangle, theta * 360 / (2 * math.pi), self.drawingPath, self.drawingPen)
                 else:
                     if points[p] != points[p + 1]:
-                        nodes.append(DrawingLine(QtCore.QPointF(*points[p]), QtCore.QPointF(*points[p + 1])))
+                        nodes.append(DrawingLine(QPointF(*points[p]), QPointF(*points[p + 1])))
                     #if p == 0:
                     #    polyline.moveTo(points[p][0], points[p][1])
                     #polyline.lineTo(points[p + 1][0], points[p + 1][1])

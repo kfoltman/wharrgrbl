@@ -1,5 +1,5 @@
 import math
-from PyQt4 import QtCore, QtGui
+from PyQt4.QtCore import *
 
 defaultEps = 1e-10
 twopi = 2 * math.pi
@@ -15,9 +15,9 @@ def sign(x):
         return -1
     return 0
 def qp(p):
-    return QtCore.QPointF(p[0], p[1])
+    return QPointF(p[0], p[1])
 def qpxy(x, y):
-    return QtCore.QPointF(x, y)
+    return QPointF(x, y)
 def unqp(p):
     return (p.x(), p.y())
 def r2d(r):
@@ -29,13 +29,13 @@ def norm(dx, dy):
 def pdist(p1, p2):
     return norm(p1.x() - p2.x(), p1.y() - p2.y())
 def circ(p, r, a):
-    return QtCore.QPointF(p.x() + r * math.cos(a), p.y() + r * math.sin(a))
+    return QPointF(p.x() + r * math.cos(a), p.y() + r * math.sin(a))
 def circ2(p, r, a):
     return (p.x() + r * math.cos(a), p.y() + r * math.sin(a))
 def circ3(x, y, r, a):
     return (x + r * math.cos(a), y + r * math.sin(a))
 def circ4(x, y, r, a):
-    return QtCore.QPointF(x + r * math.cos(a), y + r * math.sin(a))
+    return QPointF(x + r * math.cos(a), y + r * math.sin(a))
 def nangle(a):
     if a > -math.pi and a <= math.pi:
         return a
@@ -43,7 +43,7 @@ def nangle(a):
 def tang(p1, p2):
     return math.atan2(p2.y() - p1.y(), p2.x() - p1.x())
 def interp(p1, p2, c):
-    return QtCore.QPointF(p1.x() * (1 - c) + p2.x() * c, p1.y() * (1 - c) + p2.y() * c)
+    return QPointF(p1.x() * (1 - c) + p2.x() * c, p1.y() * (1 - c) + p2.y() * c)
 def eqtol(value, expected, eps = defaultEps):
     return abs(value - expected) < eps
 def assert_eqtol(value, expected, eps = defaultEps):
@@ -59,7 +59,7 @@ def assert_dist(p1, p2, expdist, eps = defaultEps):
         assert False, "Distance %f, expected %f, difference %f, tolerance %f, p1 %s, p2 %s" % (dist, expdist, abs(dist - expdist), eps, p1, p2)
 
 def distPointToLine(posF, line):
-    line2 = QtCore.QLineF(line.p1(), posF)
+    line2 = QLineF(line.p1(), posF)
     a = d2r(line.angleTo(line2))
     across = line2.length() * math.sin(a)
     along = line2.length() * math.cos(a)
@@ -82,10 +82,10 @@ def test_r2d():
     assert_eqtol(r2d(0), 0)
     assert_eqtol(r2d(twopi), 360)
 def test_pdist():
-    assert_eqtol(pdist(QtCore.QPointF(0, 1), QtCore.QPointF(1, 0)), norm(1, -1))
-    assert_eqtol(pdist(QtCore.QPointF(0, 0), QtCore.QPointF(1, 1)), norm(1, 1))
-    assert_eqtol(pdist(QtCore.QPointF(0, 0), QtCore.QPointF(1, 0)), 1)
-    assert_eqtol(pdist(QtCore.QPointF(0, 0), QtCore.QPointF(0, 1)), 1)
+    assert_eqtol(pdist(QPointF(0, 1), QPointF(1, 0)), norm(1, -1))
+    assert_eqtol(pdist(QPointF(0, 0), QPointF(1, 1)), norm(1, 1))
+    assert_eqtol(pdist(QPointF(0, 0), QPointF(1, 0)), 1)
+    assert_eqtol(pdist(QPointF(0, 0), QPointF(0, 1)), 1)
 def test_circ():
     for caller in [
         (lambda p, r, a: circ(p, r, a)),
@@ -100,8 +100,8 @@ def test_interp():
         t = i / 10.0
         assert_ptclose(interp(qpxy(10, 0), qpxy(0, 10), t), qpxy(10 - 10 * t, 10 * t))
 def test_distPointToLine():
-    hl = QtCore.QLineF(2, 0, 2, 2)
-    vl = QtCore.QLineF(0, 2, 2, 2)
+    hl = QLineF(2, 0, 2, 2)
+    vl = QLineF(0, 2, 2, 2)
     for x in range(5):
         d = abs(x - 2)
         assert_eqtol(distPointToLine(qpxy(x, 0), hl), d)
