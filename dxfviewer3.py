@@ -32,7 +32,7 @@ class DXFViewer(PreviewBase):
     def __init__(self, drawing):
         PreviewBase.__init__(self)
         self.objects = dxfToObjects(drawing)
-        self.operations = []
+        self.operations = CAMOperationsModel()
         self.selection = None
         self.curOperation = None
         self.updateCursor()
@@ -54,9 +54,10 @@ class DXFViewer(PreviewBase):
         self.activeItemPen = QPen(QColor(0, 255, 0), 0)
         #self.drawingPen.setCapStyle(Qt.RoundCap)
         #self.drawingPen.setJoinStyle(Qt.RoundJoin)
-        for o in self.operations:
-            self.curOperation = o
-            for n in o.previewPaths:
+        for i in xrange(self.operations.rowCount()):
+            op = self.operations.item(i).operation
+            self.curOperation = op
+            for n in op.previewPaths:
                 n.addToPath(self, self.drawingPath, True)
         self.curOperation = None
         for o in self.objects:
@@ -127,14 +128,16 @@ class DXFApplication(QApplication):
 class OperationTreeWidget(QDockWidget):
     def __init__(self, viewer):
         QDockWidget.__init__(self, "Operations")
-        self.initUI()
         self.viewer = viewer
         self.viewer.selected.connect(self.onSelectionChanged)
+        self.initUI()
     def initUI(self):
-        self.list = QListWidget()
+        self.list = QListView()
+        self.list.setModel(self.viewer.operations)
         #self.table.setVerticalHeaderLabels(['Value'])
         self.setWidget(self.list)
     def onSelectionChanged(self):
+        return
         self.list.clear()
         ops = {}
         for o in self.viewer.operations:
@@ -156,6 +159,9 @@ class ObjectPropertiesWidget(QDockWidget):
             ('Start depth', ),
             ('Tab height', ),
             ('Tab length', ),
+            ('Tab spacing', ),
+            ('Min tabs', ),
+            ('Max tabs', ),
         ]
         self.table = QTableWidget(len(self.properties), 1)
         self.table.setHorizontalHeaderLabels(['Value'])
@@ -194,14 +200,14 @@ class DXFMainWindow(QMainWindow, MenuHelper):
             if i.marked:
                 toDelete.add(i)
                 i.setMarked(False)
-        self.viewer.operations = [o for o in self.viewer.operations if o.parent not in toDelete]
+        self.viewer.operations.delOperations(lambda o: o.parent in toDelete)
         self.viewer.updateSelection()
     def createOperations(self, dir):
         for i in self.viewer.objects:
             if i.marked:
                 if dir == ShapeDirection.OUTLINE or isinstance(i, DrawingPolyline):
                     op = CAMOperation(dir, i, defaultTool)
-                    self.viewer.operations.append(op)
+                    self.viewer.operations.addOperation(op)
                     i.setMarked(False)
         self.viewer.updateSelection()
     def onOperationGenerate(self):

@@ -24,6 +24,8 @@ class DrawingItem(object):
             txt.setY(center[1])
     def calcBounds(self):
         return expandRect(QRectF(qpxy(self.minX(), self.minY()), qpxy(self.maxX(), self.maxY())))
+    def typeName(self):
+        return type(self).__name__.replace("Drawing", "")
 
 class DrawingLine(DrawingItem):
     def __init__(self, start, end):
