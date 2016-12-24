@@ -7,27 +7,28 @@ from cam.operation import *
 
 import dxfgrabber
 
-from PyQt4 import QtCore, QtGui
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
 from sender.jobviewer import *
 from helpers.dxf import dxfToObjects
 from helpers.gui import MenuHelper
 from helpers.geom import *
 from helpers.flatitems import *
 
-class MyRubberBand(QtGui.QRubberBand):
+class MyRubberBand(QRubberBand):
     def paintEvent(self, e):
-        qp = QtGui.QPainter()
+        qp = QPainter()
         qp.begin(self)
-        pen = QtGui.QPen(QtGui.QColor(255, 0, 0))
-        brush = QtGui.QBrush(QtGui.QColor(255, 0, 0))
+        pen = QPen(QColor(255, 0, 0))
+        brush = QBrush(QColor(255, 0, 0))
         qp.setPen(pen)
         qp.setBrush(brush)
         qp.drawRect(self.rect().adjusted(0, 0, -1, -1))
-        qp.fillRect(self.rect().adjusted(0, 0, -1, -1), QtGui.QBrush(QtGui.QColor(255, 0, 0)))
+        qp.fillRect(self.rect().adjusted(0, 0, -1, -1), QBrush(QColor(255, 0, 0)))
         qp.end()
 
 class DXFViewer(PreviewBase):
-    selected = QtCore.pyqtSignal([])
+    selected = pyqtSignal([])
     def __init__(self, drawing):
         PreviewBase.__init__(self)
         self.objects = dxfToObjects(drawing)
@@ -37,22 +38,22 @@ class DXFViewer(PreviewBase):
         self.updateCursor()
     def getPen(self, item, is_virtual):
         if is_virtual:
-            pen = QtGui.QPen(QtGui.QColor(160, 160, 160), self.curOperation.tool.diameter * self.getScale())
-            pen.setCapStyle(QtCore.Qt.RoundCap)
-            pen.setJoinStyle(QtCore.Qt.RoundJoin)
+            pen = QPen(QColor(160, 160, 160), self.curOperation.tool.diameter * self.getScale())
+            pen.setCapStyle(Qt.RoundCap)
+            pen.setJoinStyle(Qt.RoundJoin)
             return pen
         if item.marked:
             return self.activeItemPen
         return self.drawingPen
     def createPainters(self):
         self.initPainters()
-        self.drawingPath = QtGui.QGraphicsScene()
-        self.previewPen = QtGui.QPen(QtGui.QColor(160, 160, 160), 0)
-        self.drawingPen = QtGui.QPen(QtGui.QColor(0, 0, 0), 0)
-        self.drawingPen2 = QtGui.QPen(QtGui.QColor(255, 0, 0), 0)
-        self.activeItemPen = QtGui.QPen(QtGui.QColor(0, 255, 0), 0)
-        #self.drawingPen.setCapStyle(QtCore.Qt.RoundCap)
-        #self.drawingPen.setJoinStyle(QtCore.Qt.RoundJoin)
+        self.drawingPath = QGraphicsScene()
+        self.previewPen = QPen(QColor(160, 160, 160), 0)
+        self.drawingPen = QPen(QColor(0, 0, 0), 0)
+        self.drawingPen2 = QPen(QColor(255, 0, 0), 0)
+        self.activeItemPen = QPen(QColor(0, 255, 0), 0)
+        #self.drawingPen.setCapStyle(Qt.RoundCap)
+        #self.drawingPen.setJoinStyle(Qt.RoundJoin)
         for o in self.operations:
             self.curOperation = o
             for n in o.previewPaths:
@@ -61,11 +62,11 @@ class DXFViewer(PreviewBase):
         for o in self.objects:
             o.addToPath(self, self.drawingPath, False)
     def renderDrawing(self, qp):
-        trect = QtCore.QRectF(self.rect()).translated(self.translation)
+        trect = QRectF(self.rect()).translated(self.translation)
         if self.drawingPath is not None:
-            self.drawingPath.render(qp, QtCore.QRectF(self.rect()), trect)
+            self.drawingPath.render(qp, QRectF(self.rect()), trect)
     def updateCursor(self):
-        self.setCursor(QtCore.Qt.CrossCursor)
+        self.setCursor(Qt.CrossCursor)
     def getItemAtPoint(self, p):
         matches = sorted([(i, i.distanceTo(p)) for i in self.objects], lambda o1, o2: cmp(o1[1], o2[1]))
         mind = matches[0][1] if len(matches) > 0 else None
@@ -82,7 +83,7 @@ class DXFViewer(PreviewBase):
         return [i for i in self.objects if i.marked]
     def mousePressEvent(self, e):
         b = e.button()
-        if b == QtCore.Qt.LeftButton:
+        if b == Qt.LeftButton:
             p = e.posF()
             lp = self.physToLog(p)
             item = self.getItemAtPoint(lp)
@@ -91,24 +92,24 @@ class DXFViewer(PreviewBase):
                 self.updateSelection()
             else:
                 if self.selection is None:
-                    self.selection = MyRubberBand(QtGui.QRubberBand.Rectangle, self)
+                    self.selection = MyRubberBand(QRubberBand.Rectangle, self)
                 self.selectionOrigin = e.pos()
-                self.selection.setGeometry(QtCore.QRect(e.pos(), QtCore.QSize()))
+                self.selection.setGeometry(QRect(e.pos(), QSize()))
                 self.selection.show()
-        elif b == QtCore.Qt.RightButton:
+        elif b == Qt.RightButton:
             self.start_point = e.posF()
             self.prev_point = e.posF()
             self.start_origin = (self.x0, self.y0)
             self.dragging = True
     def mouseMoveEvent(self, e):
         if self.selection and self.selection.isVisible():
-            self.selection.setGeometry(QtCore.QRect(self.selectionOrigin, e.pos()).normalized())
+            self.selection.setGeometry(QRect(self.selectionOrigin, e.pos()).normalized())
         PreviewBase.mouseMoveEvent(self, e)
     def mouseReleaseEvent(self, e):
         if self.selection and self.selection.isVisible():
             ps = self.unproject(self.selectionOrigin.x(), self.selectionOrigin.y())
             pe = self.unproject(e.pos().x(), e.pos().y())
-            box = QtCore.QRectF(qp(ps), qp(pe)).normalized()
+            box = QRectF(qp(ps), qp(pe)).normalized()
             
             self.selectByBox(box)
             self.selection.hide()
@@ -120,17 +121,17 @@ class DXFViewer(PreviewBase):
                 o.setMarked(True)
         self.updateSelection()
     
-class DXFApplication(QtGui.QApplication):
+class DXFApplication(QApplication):
     pass
 
-class OperationTreeWidget(QtGui.QDockWidget):
+class OperationTreeWidget(QDockWidget):
     def __init__(self, viewer):
-        QtGui.QDockWidget.__init__(self, "Operations")
+        QDockWidget.__init__(self, "Operations")
         self.initUI()
         self.viewer = viewer
         self.viewer.selected.connect(self.onSelectionChanged)
     def initUI(self):
-        self.list = QtGui.QListWidget()
+        self.list = QListWidget()
         #self.table.setVerticalHeaderLabels(['Value'])
         self.setWidget(self.list)
     def onSelectionChanged(self):
@@ -145,9 +146,9 @@ class OperationTreeWidget(QtGui.QDockWidget):
                 for o in ops[i]:
                     self.list.addItem(o.description())
 
-class ObjectPropertiesWidget(QtGui.QDockWidget):
+class ObjectPropertiesWidget(QDockWidget):
     def __init__(self):
-        QtGui.QDockWidget.__init__(self, "Properties")
+        QDockWidget.__init__(self, "Properties")
         self.initUI()
     def initUI(self):
         self.properties = [
@@ -156,17 +157,17 @@ class ObjectPropertiesWidget(QtGui.QDockWidget):
             ('Tab height', ),
             ('Tab length', ),
         ]
-        self.table = QtGui.QTableWidget(len(self.properties), 1)
+        self.table = QTableWidget(len(self.properties), 1)
         self.table.setHorizontalHeaderLabels(['Value'])
         self.table.setVerticalHeaderLabels([p[0] for p in self.properties])
         self.setWidget(self.table)
 
-class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
+class DXFMainWindow(QMainWindow, MenuHelper):
     def __init__(self, drawing):
-        QtGui.QMainWindow.__init__(self)
+        QMainWindow.__init__(self)
         self.drawing = drawing
-        self.toolbar = QtGui.QToolBar("Operations")
-        self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
+        self.toolbar = QToolBar("Operations")
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.toolbar.addAction("Profile").triggered.connect(self.onOperationProfile)
         self.toolbar.addAction("Cutout").triggered.connect(self.onOperationCutout)
         self.toolbar.addAction("Pocket").triggered.connect(self.onOperationPocket)
@@ -175,8 +176,8 @@ class DXFMainWindow(QtGui.QMainWindow, MenuHelper):
         self.toolbar.addAction("Generate").triggered.connect(self.onOperationGenerate)
         self.addToolBar(self.toolbar)
         self.viewer = DXFViewer(drawing)
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, OperationTreeWidget(self.viewer))
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, ObjectPropertiesWidget())
+        self.addDockWidget(Qt.RightDockWidgetArea, OperationTreeWidget(self.viewer))
+        self.addDockWidget(Qt.RightDockWidgetArea, ObjectPropertiesWidget())
         self.setCentralWidget(self.viewer)
         self.setMinimumSize(1024, 600)
     def onOperationProfile(self):

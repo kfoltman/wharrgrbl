@@ -1,5 +1,6 @@
 import math
 from helpers.geom import *
+from PyQt4.QtGui import *
 
 class DrawingItem(object):
     def __init__(self):
@@ -9,20 +10,20 @@ class DrawingItem(object):
         self.marked = marked
     def addArrow(self, viewer, center, path, angle, is_virtual):
         r = 4
-        c = QtCore.QPointF(*center)
+        c = QPointF(*center)
         sa = angle
         da = angle + 0.4 + math.pi
-        path.addLine(QtCore.QLineF(circ(c, r, -sa), circ(c, r, -da)), viewer.getPen(self, is_virtual))
+        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da)), viewer.getPen(self, is_virtual))
         da2 = angle - 0.4 + math.pi
-        path.addLine(QtCore.QLineF(circ(c, r, -sa), circ(c, r, -da2)), viewer.getPen(self, is_virtual))
-        path.addLine(QtCore.QLineF(circ(c, r, -da2), circ(c, r, -da)), viewer.getPen(self, is_virtual))
+        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da2)), viewer.getPen(self, is_virtual))
+        path.addLine(QLineF(circ(c, r, -da2), circ(c, r, -da)), viewer.getPen(self, is_virtual))
     def addDebug(self, path, center):
         if self.windings:
             txt = path.addSimpleText("%s" % self.windings)
             txt.setX(center[0])
             txt.setY(center[1])
     def calcBounds(self):
-        return expandRect(QtCore.QRectF(qpxy(self.minX(), self.minY()), qpxy(self.maxX(), self.maxY())))
+        return expandRect(QRectF(qpxy(self.minX(), self.minY()), qpxy(self.maxX(), self.maxY())))
 
 class DrawingLine(DrawingItem):
     def __init__(self, start, end):
@@ -42,11 +43,11 @@ class DrawingLine(DrawingItem):
     def reversed(self):
         return DrawingLine(self.end, self.start)
     def distanceTo(self, p):
-        return distPointToLine(QtCore.QPointF(*p), QtCore.QLineF(self.start, self.end))
+        return distPointToLine(QPointF(*p), QLineF(self.start, self.end))
     def toLine(self):
-        return QtCore.QLineF(self.start, self.end)
+        return QLineF(self.start, self.end)
     def length(self):
-        return QtCore.QLineF(self.start, self.end).length()
+        return QLineF(self.start, self.end).length()
     def clone(self):
         return DrawingLine(self.start, self.end)
     def cut(self, start, end):
@@ -143,11 +144,11 @@ class DrawingArc(DrawingItem):
             return # No solution exists
         c = interp(c1, c2, 0.5)
         xc, yc = c.x(), c.y()
-        if abs(pdist(QtCore.QPointF(xc, yc), p1) - abs(r)) > eps:
-            print "Centre point is not at r distance to p1", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), dcos, pdist(QtCore.QPointF(xc, yc), p1)
+        if abs(pdist(QPointF(xc, yc), p1) - abs(r)) > eps:
+            print "Centre point is not at r distance to p1", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), dcos, pdist(QPointF(xc, yc), p1)
             assert False
-        if abs(pdist(QtCore.QPointF(xc, yc), p2) - abs(r)) > eps:
-            print "Centre point is not at r distance to p2", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), dcos, pdist(QtCore.QPointF(xc, yc), p2)
+        if abs(pdist(QPointF(xc, yc), p2) - abs(r)) > eps:
+            print "Centre point is not at r distance to p2", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), dcos, pdist(QPointF(xc, yc), p2)
             assert False
         if pdist(circ4(xc, yc, r, alpha), p1) > eps:
             print "Incorrect calculated p1", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), pdist(circ4(xc, yc, r, alpha), p1)
@@ -155,8 +156,8 @@ class DrawingArc(DrawingItem):
         if pdist(circ4(xc, yc, r, beta), p2) > eps:
             print "Incorrect calculated p2", p1, p2, xc, yc, r, r2d(alpha), r2d(beta)
             assert False
-        #return DrawingArc(QtCore.QPointF(xc, yc), r, beta, -nangle(beta - alpha))
-        return DrawingArc(QtCore.QPointF(xc, yc), r, alpha, nangle(beta - alpha))
+        #return DrawingArc(QPointF(xc, yc), r, beta, -nangle(beta - alpha))
+        return DrawingArc(QPointF(xc, yc), r, alpha, nangle(beta - alpha))
     @staticmethod
     def fromangles(centre, radius, startAngle, endAngle, dir):
         span = nangle(endAngle - startAngle)
@@ -167,9 +168,9 @@ class DrawingArc(DrawingItem):
         r = self.radius * viewer.getScale()
         sangle = r2d(self.sangle)
         span = r2d(self.span)
-        pp = QtGui.QPainterPath()
-        pp.arcMoveTo(QtCore.QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle)
-        pp.arcTo(QtCore.QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle, span)
+        pp = QPainterPath()
+        pp.arcMoveTo(QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle)
+        pp.arcTo(QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle, span)
         self.addDebug(path, circ3(xc, yc, r, -(self.sangle + self.span / 2)))
         if False:
             pp.moveTo(*viewer.project(self.minX(), self.centre.y() - self.radius, 0))
@@ -183,7 +184,7 @@ class DrawingArc(DrawingItem):
             a = self.sangle + self.span
             self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.endAngle, is_virtual)
     def distanceTo(self, p):
-        p = QtCore.QPointF(*p)
+        p = QPointF(*p)
         theta = tang(self.centre, p)
         sangle = self.sangle
         span = self.span
@@ -252,7 +253,7 @@ class DrawingPolyline(DrawingItem):
         else:
             return None
     def calcBounds(self):
-        return reduce(QtCore.QRectF.united, [o.bounds for o in self.nodes])
+        return reduce(QRectF.united, [o.bounds for o in self.nodes])
             
 class DrawingCircle(DrawingPolyline):
     def __init__(self, centre, radius):
@@ -298,12 +299,12 @@ def intersections(d1, d2):
     if checkBoundsInIntersections and not d1.bounds.intersects(d2.bounds):
         return []
     if type(d1) is DrawingLine and type(d2) is DrawingLine:
-        p = QtCore.QPointF()
+        p = QPointF()
         # a > 0 -> the d2 crosses d1 right to left
         a = nangle(d2.startAngle - d1.startAngle)
         if abs(a) < defaultEps:
             a = 0
-        if d1.toLine().intersect(d2.toLine(), p) == QtCore.QLineF.BoundedIntersection:
+        if d1.toLine().intersect(d2.toLine(), p) == QLineF.BoundedIntersection:
             return [(p, a)]
         return []
     if type(d1) is DrawingArc and type(d2) is DrawingArc:
@@ -331,7 +332,7 @@ def intersections(d1, d2):
         d1, d2 = d2, d1
     if type(d1) is DrawingLine and type(d2) is DrawingArc:
         line = d1.toLine()
-        line2 = QtCore.QLineF(line.p1(), d2.centre)
+        line2 = QLineF(line.p1(), d2.centre)
         a = d2r(line.angleTo(line2))
         across = line2.length() * math.sin(a)
         along = line2.length() * math.cos(a)
