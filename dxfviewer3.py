@@ -11,7 +11,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from sender.jobviewer import *
 from helpers.dxf import dxfToObjects
-from helpers.gui import MenuHelper
+from helpers.gui import *
 from helpers.geom import *
 from helpers.flatitems import *
 
@@ -129,44 +129,90 @@ class OperationTreeWidget(QDockWidget):
     def __init__(self, viewer):
         QDockWidget.__init__(self, "Operations")
         self.viewer = viewer
-        self.viewer.selected.connect(self.onSelectionChanged)
         self.initUI()
     def initUI(self):
+        self.w = QWidget()
+        self.w.setLayout(QVBoxLayout())
+        self.w.layout().setSpacing(0)
+        self.setWidget(self.w)
         self.list = QListView()
+        self.list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list.setModel(self.viewer.operations)
-        #self.table.setVerticalHeaderLabels(['Value'])
-        self.setWidget(self.list)
+        self.list.activated.connect(self.onSelectionChanged)
+        self.toolbar = QWidget()
+        pb = QPushButton("Delete")
+        pb.clicked.connect(self.onOperationDelete)
+        self.toolbar.setLayout(QHBoxLayout())
+        self.toolbar.layout().addWidget(pb)
+        self.w.layout().addWidget(self.list)
+        self.w.layout().addWidget(self.toolbar)
+    def getSelected(self):
+        sm = self.list.selectionModel()
+        ops = []
+        for i in sm.selectedRows():
+            ops.append(self.viewer.operations.item(i.row()).operation)
+        return ops
+    def onOperationDelete(self):
+        ops = self.getSelected()
+        self.viewer.operations.delOperations(lambda o: o in ops)
+        self.viewer.updateSelection()
     def onSelectionChanged(self):
-        return
-        self.list.clear()
-        ops = {}
-        for o in self.viewer.operations:
-            if o.parent not in ops:
-                ops[o.parent] = []
-            ops[o.parent].append(o)
-        for i in self.viewer.getSelected():
-            if i in ops:
-                for o in ops[i]:
-                    self.list.addItem(o.description())
+        self.viewer.repaint()
+    def select(self, item):
+        self.list.selectionModel().select(QModelIndex(item), QItemSelectionModel.ClearAndSelect)
 
 class ObjectPropertiesWidget(QDockWidget):
-    def __init__(self):
+    def __init__(self, viewer):
         QDockWidget.__init__(self, "Properties")
+        self.viewer = viewer
         self.initUI()
     def initUI(self):
         self.properties = [
-            ('End depth', ),
-            ('Start depth', ),
-            ('Tab height', ),
-            ('Tab length', ),
-            ('Tab spacing', ),
-            ('Min tabs', ),
-            ('Max tabs', ),
+            FloatEditableProperty("End depth", "zend", "%0.3f"),
+            FloatEditableProperty("Start depth", "zstart", "%0.3f"),
+            FloatEditableProperty("Tab height", "tab_height", "%0.3f", allow_none = True),
+            FloatEditableProperty("Tab width", "tab_width", "%0.3f", allow_none = True),
+            FloatEditableProperty("Tab spacing", "tab_spacing", "%0.3f", allow_none = True),
+            IntEditableProperty('Min tabs', "min_tabs", min = 0, max = 10),
+            IntEditableProperty('Max tabs', "max_tabs", min = 0, max = 10),
         ]
         self.table = QTableWidget(len(self.properties), 1)
         self.table.setHorizontalHeaderLabels(['Value'])
-        self.table.setVerticalHeaderLabels([p[0] for p in self.properties])
+        self.table.setVerticalHeaderLabels([p.name for p in self.properties])
+        self.table.cellChanged.connect(self.onCellChanged)
+        self.operations = None
         self.setWidget(self.table)
+    def onCellChanged(self, row, column):
+        if self.operations:
+            newValueText = self.table.item(row, column).text()
+            prop = self.properties[row]
+            try:
+                value = prop.validate(newValueText)
+                for o in self.operations:
+                    if value != prop.getData(o):
+                        prop.setData(o, value)
+                    o.update()
+            except Exception as e:
+                print e
+            finally:
+                self.refreshRow(row)
+            self.viewer.updateSelection()
+    def refreshRow(self, row):
+        prop = self.properties[row]
+        s = prop.toEditString(prop.getData(self.operations[0]))
+        i = self.table.item(row, 0)
+        if i is None or i.text() != s:
+            self.table.setItem(row, 0, QTableWidgetItem(s))
+    def disable(self):
+        self.table.setEnabled(False)
+        for i in xrange(len(self.properties)):
+            self.table.setItem(i, 0, None)
+    def enable(self, operations):
+        self.operations = operations
+        self.table.setEnabled(True)
+        o = operations[0]
+        for i in xrange(len(self.properties)):
+            self.refreshRow(i)
 
 class DXFMainWindow(QMainWindow, MenuHelper):
     def __init__(self, drawing):
@@ -178,14 +224,24 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.toolbar.addAction("Cutout").triggered.connect(self.onOperationCutout)
         self.toolbar.addAction("Pocket").triggered.connect(self.onOperationPocket)
         self.toolbar.addAction("Engrave").triggered.connect(self.onOperationEngrave)
-        self.toolbar.addAction("Delete").triggered.connect(self.onOperationDelete)
         self.toolbar.addAction("Generate").triggered.connect(self.onOperationGenerate)
+        self.toolbar.addAction("Unselect").triggered.connect(self.onOperationUnselect)
         self.addToolBar(self.toolbar)
         self.viewer = DXFViewer(drawing)
-        self.addDockWidget(Qt.RightDockWidgetArea, OperationTreeWidget(self.viewer))
-        self.addDockWidget(Qt.RightDockWidgetArea, ObjectPropertiesWidget())
+        self.operationTree = OperationTreeWidget(self.viewer)
+        self.objectProperties = ObjectPropertiesWidget(self.viewer)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.operationTree)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.objectProperties)
         self.setCentralWidget(self.viewer)
         self.setMinimumSize(1024, 600)
+        self.operationTree.list.selectionModel().selectionChanged.connect(self.onOperationsSelected)
+        self.onOperationsSelected()
+    def onOperationsSelected(self):
+        selected = self.operationTree.getSelected()
+        if selected:
+            self.objectProperties.enable(selected)
+        else:
+            self.objectProperties.disable()
     def onOperationProfile(self):
         self.createOperations(ShapeDirection.OUTSIDE)
     def onOperationCutout(self):
@@ -194,21 +250,22 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.createOperations(ShapeDirection.POCKET)
     def onOperationEngrave(self):
         self.createOperations(ShapeDirection.OUTLINE)
-    def onOperationDelete(self):
-        toDelete = set([])
+    def onOperationUnselect(self):
         for i in self.viewer.objects:
             if i.marked:
-                toDelete.add(i)
                 i.setMarked(False)
-        self.viewer.operations.delOperations(lambda o: o.parent in toDelete)
         self.viewer.updateSelection()
     def createOperations(self, dir):
+        shapes = []
         for i in self.viewer.objects:
             if i.marked:
                 if dir == ShapeDirection.OUTLINE or isinstance(i, DrawingPolyline):
-                    op = CAMOperation(dir, i, defaultTool)
-                    self.viewer.operations.addOperation(op)
+                    shapes.append(i)
                     i.setMarked(False)
+        if len(shapes):
+            op = CAMOperation(dir, shapes, defaultTool)
+            index = self.viewer.operations.addOperation(op)
+            self.operationTree.select(index)
         self.viewer.updateSelection()
     def onOperationGenerate(self):
         ops = ["G90 G17"]
@@ -219,16 +276,17 @@ class DXFMainWindow(QMainWindow, MenuHelper):
                 lastTool = o.tool
             lastz = 5
             last = None
-            for p in o.fullPaths:
-                z = o.zstart
-                tabs = o.generateTabs(p)
-                while z > o.zend:
-                    z -= o.tool.depth
-                    if z < o.zend:
-                        z = o.zend
-                    for start, end, is_tab in tabs:
-                        opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, min(o.zend - o.tab_height, o.zstart)), last, lastz)
-                        ops += opsc
+            for s in o.shapes:
+                for p in s.fullPaths:
+                    z = o.zstart
+                    tabs = s.generateTabs(p)
+                    while z > o.zend:
+                        z -= o.tool.depth
+                        if z < o.zend:
+                            z = o.zend
+                        for start, end, is_tab in tabs:
+                            opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, min(o.zend - o.tab_height, o.zstart)), last, lastz)
+                            ops += opsc
         if lastTool is not None:
             ops += lastTool.moveTo(qpxy(0, 0), lastTool.clearance, last, lastz)
         f = file("test.nc", "w")
