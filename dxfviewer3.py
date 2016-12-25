@@ -4,6 +4,7 @@ import sys
 import time
 from cam.tool import *
 from cam.operation import *
+from cam.tooledit import *
 
 import dxfgrabber
 
@@ -147,12 +148,13 @@ class OperationTreeWidget(QDockWidget):
         self.list.setModel(self.viewer.operations)
         self.list.selectionModel().selectionChanged.connect(self.onSelectionChanged)
         self.toolbar = QWidget()
-        pb = QPushButton("Delete")
-        pb.clicked.connect(self.onOperationDelete)
+        self.deleteButton = QPushButton("Delete")
+        self.deleteButton.clicked.connect(self.onOperationDelete)
         self.toolbar.setLayout(QHBoxLayout())
-        self.toolbar.layout().addWidget(pb)
+        self.toolbar.layout().addWidget(self.deleteButton)
         self.w.layout().addWidget(self.list)
         self.w.layout().addWidget(self.toolbar)
+        self.onSelectionChanged(None, None)
     def getSelected(self):
         sm = self.list.selectionModel()
         ops = []
@@ -164,78 +166,38 @@ class OperationTreeWidget(QDockWidget):
         self.viewer.operations.delOperations(lambda o: o in ops)
         self.viewer.updateSelection()
     def onSelectionChanged(self, selected, deselected):
-        self.viewer.setOpSelection(self.getSelected())
+        items = self.getSelected()
+        self.deleteButton.setEnabled(len(items) > 0)
+        self.viewer.setOpSelection(items)
     def select(self, item):
         self.list.selectionModel().select(QModelIndex(item), QItemSelectionModel.ClearAndSelect)
 
 class ObjectPropertiesWidget(QDockWidget):
+    properties = [
+        FloatEditableProperty("End depth", "zend", "%0.3f"),
+        FloatEditableProperty("Start depth", "zstart", "%0.3f"),
+        FloatEditableProperty("Tab height", "tab_height", "%0.3f", allow_none = True, none_value = "Full height"),
+        FloatEditableProperty("Tab width", "tab_width", "%0.3f", allow_none = True, none_value = "1/2 tool diameter"),
+        FloatEditableProperty("Tab spacing", "tab_spacing", "%0.3f"),
+        IntEditableProperty('Min tabs', "min_tabs", min = 0, max = 10),
+        IntEditableProperty('Max tabs', "max_tabs", min = 0, max = 10),
+    ]
     def __init__(self, viewer):
         QDockWidget.__init__(self, "Properties")
         self.viewer = viewer
         self.updating = False
+        self.operations = None
         self.initUI()
     def initUI(self):
-        self.properties = [
-            FloatEditableProperty("End depth", "zend", "%0.3f"),
-            FloatEditableProperty("Start depth", "zstart", "%0.3f"),
-            FloatEditableProperty("Tab height", "tab_height", "%0.3f", allow_none = True),
-            FloatEditableProperty("Tab width", "tab_width", "%0.3f", allow_none = True),
-            FloatEditableProperty("Tab spacing", "tab_spacing", "%0.3f", allow_none = True),
-            IntEditableProperty('Min tabs', "min_tabs", min = 0, max = 10),
-            IntEditableProperty('Max tabs', "max_tabs", min = 0, max = 10),
-        ]
-        self.table = QTableWidget(len(self.properties), 1)
-        self.table.setHorizontalHeaderLabels(['Value'])
-        self.table.setVerticalHeaderLabels([p.name for p in self.properties])
-        self.table.cellChanged.connect(self.onCellChanged)
-        self.operations = None
+        self.table = PropertySheetWidget(self.properties)
+        self.table.propertyChanged.connect(self.onPropertyChanged)
         self.setWidget(self.table)
-    def onCellChanged(self, row, column):
-        if self.operations and not self.updating:
-            item = self.table.item(row, column)
-            newValueText = item.data(Qt.EditRole).toString()
-            prop = self.properties[row]
-            try:
-                value = prop.validate(newValueText)
-                for o in self.operations:
-                    if value != prop.getData(o):
-                        prop.setData(o, value)
-                    o.update()
-            except Exception as e:
-                print e
-            finally:
-                self.refreshRow(row)
-            self.viewer.updateSelection()
-    def refreshRow(self, row):
-        prop = self.properties[row]
-        values = []
-        for o in self.operations:
-            values.append(prop.getData(o))
-        i = self.table.item(row, 0)
-        if len(values):
-            if any([v != values[0] for v in values]):
-                s = MultipleItem
-            else:
-                s = prop.toEditString(values[0])
-            if i is None or i.text() != s:
-                try:
-                    self.updating = True
-                    self.table.setItem(row, 0, PropertyTableWidgetItem(s))
-                finally:
-                    self.updating = False
-        else:
-            if i is not None:
-                self.table.setItem(row, 0, None)
+    def onPropertyChanged(self, changed):
+        for o in changed:
+            o.update()
+        self.viewer.updateSelection()
     def setOperations(self, operations):
-        self.operations = operations
-        self.table.setEnabled(len(self.operations) > 0)
-        if self.operations:
-            o = operations[0]
-            for i in xrange(len(self.properties)):
-                self.refreshRow(i)
-        else:
-            for i in xrange(len(self.properties)):
-                self.table.setItem(i, 0, None)
+        self.table.setObjects(operations)
 
 class DXFMainWindow(QMainWindow, MenuHelper):
     def __init__(self, drawing):
@@ -249,6 +211,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.toolbar.addAction("Engrave").triggered.connect(self.onOperationEngrave)
         self.toolbar.addAction("Generate").triggered.connect(self.onOperationGenerate)
         self.toolbar.addAction("Unselect").triggered.connect(self.onOperationUnselect)
+        self.toolbar.addAction("Tool").triggered.connect(self.onOperationTool)
         self.addToolBar(self.toolbar)
         self.viewer = DXFViewer(drawing)
         self.operationTree = OperationTreeWidget(self.viewer)
@@ -287,6 +250,16 @@ class DXFMainWindow(QMainWindow, MenuHelper):
             index = self.viewer.operations.addOperation(op)
             self.operationTree.select(index)
         self.viewer.updateSelection()
+    def updateOperationsAndRedraw(self):
+        for o in self.viewer.operations:
+            o.update()
+        self.viewer.updateSelection()
+    def onOperationTool(self):
+        tooledit = ToolEditDlg(defaultTool)
+        tooledit.grid.propertyChanged.connect(self.updateOperationsAndRedraw)
+        if tooledit.exec_() < 1:
+            tooledit.rollback()
+        self.updateOperationsAndRedraw()
     def onOperationGenerate(self):
         ops = self.viewer.operations.toGcode()
         f = file("test.nc", "w")
