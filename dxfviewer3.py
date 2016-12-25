@@ -34,11 +34,15 @@ class DXFViewer(PreviewBase):
         self.objects = dxfToObjects(drawing)
         self.operations = CAMOperationsModel()
         self.selection = None
+        self.opSelection = []
         self.curOperation = None
         self.updateCursor()
     def getPen(self, item, is_virtual):
         if is_virtual:
-            pen = QPen(QColor(160, 160, 160), self.curOperation.tool.diameter * self.getScale())
+            color = QColor(160, 160, 160)
+            if self.curOperation in self.opSelection:
+                color = QColor(255, 0, 0)
+            pen = QPen(color, self.curOperation.tool.diameter * self.getScale())
             pen.setCapStyle(Qt.RoundCap)
             pen.setJoinStyle(Qt.RoundJoin)
             return pen
@@ -82,6 +86,9 @@ class DXFViewer(PreviewBase):
         self.selected.emit()
     def getSelected(self):
         return [i for i in self.objects if i.marked]
+    def setOpSelection(self, selection):
+        self.opSelection = selection
+        self.updateSelection()
     def mousePressEvent(self, e):
         b = e.button()
         if b == Qt.LeftButton:
@@ -138,7 +145,7 @@ class OperationTreeWidget(QDockWidget):
         self.list = QListView()
         self.list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list.setModel(self.viewer.operations)
-        self.list.activated.connect(self.onSelectionChanged)
+        self.list.selectionModel().selectionChanged.connect(self.onSelectionChanged)
         self.toolbar = QWidget()
         pb = QPushButton("Delete")
         pb.clicked.connect(self.onOperationDelete)
@@ -156,8 +163,8 @@ class OperationTreeWidget(QDockWidget):
         ops = self.getSelected()
         self.viewer.operations.delOperations(lambda o: o in ops)
         self.viewer.updateSelection()
-    def onSelectionChanged(self):
-        self.viewer.repaint()
+    def onSelectionChanged(self, selected, deselected):
+        self.viewer.setOpSelection(self.getSelected())
     def select(self, item):
         self.list.selectionModel().select(QModelIndex(item), QItemSelectionModel.ClearAndSelect)
 
@@ -165,6 +172,7 @@ class ObjectPropertiesWidget(QDockWidget):
     def __init__(self, viewer):
         QDockWidget.__init__(self, "Properties")
         self.viewer = viewer
+        self.updating = False
         self.initUI()
     def initUI(self):
         self.properties = [
@@ -183,8 +191,9 @@ class ObjectPropertiesWidget(QDockWidget):
         self.operations = None
         self.setWidget(self.table)
     def onCellChanged(self, row, column):
-        if self.operations:
-            newValueText = self.table.item(row, column).text()
+        if self.operations and not self.updating:
+            item = self.table.item(row, column)
+            newValueText = item.data(Qt.EditRole).toString()
             prop = self.properties[row]
             try:
                 value = prop.validate(newValueText)
@@ -199,20 +208,34 @@ class ObjectPropertiesWidget(QDockWidget):
             self.viewer.updateSelection()
     def refreshRow(self, row):
         prop = self.properties[row]
-        s = prop.toEditString(prop.getData(self.operations[0]))
+        values = []
+        for o in self.operations:
+            values.append(prop.getData(o))
         i = self.table.item(row, 0)
-        if i is None or i.text() != s:
-            self.table.setItem(row, 0, QTableWidgetItem(s))
-    def disable(self):
-        self.table.setEnabled(False)
-        for i in xrange(len(self.properties)):
-            self.table.setItem(i, 0, None)
-    def enable(self, operations):
+        if len(values):
+            if any([v != values[0] for v in values]):
+                s = MultipleItem
+            else:
+                s = prop.toEditString(values[0])
+            if i is None or i.text() != s:
+                try:
+                    self.updating = True
+                    self.table.setItem(row, 0, PropertyTableWidgetItem(s))
+                finally:
+                    self.updating = False
+        else:
+            if i is not None:
+                self.table.setItem(row, 0, None)
+    def setOperations(self, operations):
         self.operations = operations
-        self.table.setEnabled(True)
-        o = operations[0]
-        for i in xrange(len(self.properties)):
-            self.refreshRow(i)
+        self.table.setEnabled(len(self.operations) > 0)
+        if self.operations:
+            o = operations[0]
+            for i in xrange(len(self.properties)):
+                self.refreshRow(i)
+        else:
+            for i in xrange(len(self.properties)):
+                self.table.setItem(i, 0, None)
 
 class DXFMainWindow(QMainWindow, MenuHelper):
     def __init__(self, drawing):
@@ -238,10 +261,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.onOperationsSelected()
     def onOperationsSelected(self):
         selected = self.operationTree.getSelected()
-        if selected:
-            self.objectProperties.enable(selected)
-        else:
-            self.objectProperties.disable()
+        self.objectProperties.setOperations(selected)
     def onOperationProfile(self):
         self.createOperations(ShapeDirection.OUTSIDE)
     def onOperationCutout(self):
@@ -268,27 +288,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
             self.operationTree.select(index)
         self.viewer.updateSelection()
     def onOperationGenerate(self):
-        ops = ["G90 G17"]
-        lastTool = None
-        for o in self.viewer.operations:
-            if o.tool != lastTool:
-                ops += o.tool.begin()
-                lastTool = o.tool
-            lastz = 5
-            last = None
-            for s in o.shapes:
-                for p in s.fullPaths:
-                    z = o.zstart
-                    tabs = s.generateTabs(p)
-                    while z > o.zend:
-                        z -= o.tool.depth
-                        if z < o.zend:
-                            z = o.zend
-                        for start, end, is_tab in tabs:
-                            opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, min(o.zend - o.tab_height, o.zstart)), last, lastz)
-                            ops += opsc
-        if lastTool is not None:
-            ops += lastTool.moveTo(qpxy(0, 0), lastTool.clearance, last, lastz)
+        ops = self.viewer.operations.toGcode()
         f = file("test.nc", "w")
         for op in ops:
             print op
