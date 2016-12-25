@@ -135,3 +135,34 @@ class CAMOperationsModel(QStandardItemModel):
                 self.removeRow(i)
     def __iter__(self):
         return StandardModelIterator(self, lambda smi: smi.operation)
+    def toGcode(self):
+        ops = ["G90 G17 G21"]
+        lastTool = None
+        for o in self:
+            if o.tool != lastTool:
+                ops += o.tool.begin()
+                lastTool = o.tool
+            lastz = 5
+            last = None
+            for s in o.shapes:
+                for p in s.fullPaths:
+                    z = o.zstart
+                    tabs = s.generateTabs(p)
+                    while z > o.zend:
+                        z -= o.tool.depth
+                        if z < o.zend:
+                            z = o.zend
+                        if o.tab_height is None:
+                            ztab = o.zstart
+                        else:
+                            ztab = min(o.zend + o.tab_height, o.zstart)
+                        if z < ztab:
+                            for start, end, is_tab in tabs:
+                                opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, ztab), last, lastz)
+                                ops += opsc
+                        else:
+                            opsc, last, lastz = o.tool.followContour([p], z, last, lastz)
+                            ops += opsc
+        if lastTool is not None:
+            ops += lastTool.moveTo(qpxy(0, 0), lastTool.clearance, last, lastz)
+        return ops

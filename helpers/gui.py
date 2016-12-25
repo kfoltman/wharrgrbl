@@ -1,3 +1,4 @@
+from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 class MenuHelper(object):
@@ -93,3 +94,23 @@ class IntEditableProperty(EditableProperty):
         if self.max is not None and value > self.max:
             value = self.max
         return value
+
+class MultipleItem(object):
+    @staticmethod
+    def __str__(self):
+        return "(multiple)"
+
+class PropertyTableWidgetItem(QTableWidgetItem):
+    def __init__(self, value):
+        self.value = value
+        if value is MultipleItem:
+            QTableWidgetItem.__init__(self, "")
+        else:
+            QTableWidgetItem.__init__(self, value)
+    def data(self, role):
+        if self.value is MultipleItem:
+            if role == Qt.DisplayRole:
+                return "(multiple)"
+            if role == Qt.ForegroundRole:
+                return QBrush(QColor("gray"))
+        return QTableWidgetItem.data(self, role)
