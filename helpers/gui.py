@@ -1,4 +1,4 @@
-from PyQt4 import QtCore, QtGui
+from PyQt4.QtGui import *
 
 class MenuHelper(object):
     def __init__(self):
@@ -15,14 +15,14 @@ class MenuHelper(object):
             fn()
 
     def makeAction(self, name, shortcut, tip, handler):
-        action = QtGui.QAction(QtGui.QIcon(), name, self)
+        action = QAction(QIcon(), name, self)
         action.setShortcut(shortcut)
         action.setStatusTip(tip)
         action.triggered.connect(handler)
         return action
 
     def makeRadioAction(self, name, shortcut, tip, group, handler, isChecked):
-        action = QtGui.QAction(QtGui.QIcon(), name, self)
+        action = QAction(QIcon(), name, self)
         action.setShortcut(shortcut)
         action.setStatusTip(tip)
         action.setActionGroup(group)
@@ -35,7 +35,7 @@ class MenuHelper(object):
         return action
 
     def makeCheckAction(self, name, shortcut, tip, handler, isChecked):
-        action = QtGui.QAction(QtGui.QIcon(), name, self)
+        action = QAction(QIcon(), name, self)
         action.setShortcut(shortcut)
         action.setStatusTip(tip)
         action.setCheckable(True)
@@ -47,7 +47,49 @@ class MenuHelper(object):
         return action
 
     def makeSeparator(self):
-        action = QtGui.QAction(self)
+        action = QAction(self)
         action.setSeparator(True)
         return action
 
+class EditableProperty(object):
+    def __init__(self, name, attribute, format = "%s"):
+        self.name = name
+        self.attribute = attribute
+        self.format = format
+    def getData(self, item):
+        return getattr(item, self.attribute)
+    def setData(self, item, value):
+        setattr(item, self.attribute, value)
+    def toEditString(self, value):
+        return self.format % (value,)
+    def validate(self, value):
+        return value
+
+class FloatEditableProperty(EditableProperty):
+    def __init__(self, name, attribute, format, min = None, max = None, allow_none = False):
+        EditableProperty.__init__(self, name, attribute, format)
+        self.min = min
+        self.max = max
+        self.allow_none = allow_none
+    def validate(self, value):
+        if value == "" and self.allow_none:
+            return None
+        value = float(value)
+        if self.min is not None and value < self.min:
+            value = self.min
+        if self.max is not None and value > self.max:
+            value = self.max
+        return value
+
+class IntEditableProperty(EditableProperty):
+    def __init__(self, name, attribute, format = "%d", min = None, max = None):
+        EditableProperty.__init__(self, name, attribute, format)
+        self.min = min
+        self.max = max
+    def validate(self, value):
+        value = int(value)
+        if self.min is not None and value < self.min:
+            value = self.min
+        if self.max is not None and value > self.max:
+            value = self.max
+        return value

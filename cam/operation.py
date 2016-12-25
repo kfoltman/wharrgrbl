@@ -11,20 +11,71 @@ defaultTool = CAMTool(diameter = 2.0, feed = 200.0, plunge = 100.0, depth = 0.3)
 defaultZStart = 0
 defaultZEnd = -2.5
 defaultTabHeight = 1
-defaultNumTabs = 4
+defaultMinTabs = 2
+defaultMaxTabs = 4
+
+class CAMOperationShape(object):
+    def __init__(self, item, parent):
+        self.item = item
+        self.parent = parent
+    def update(self):
+        if self.parent.direction in (ShapeDirection.OUTLINE, ShapeDirection.POCKET):
+            self.ntabs = 0
+        else:
+            self.ntabs = max(self.parent.min_tabs, min(self.parent.max_tabs, int(1 + self.item.length() // self.parent.tab_spacing)))
+        self.fullPaths = self.generateFullPaths()
+    def generateTabs(self, path):
+        l = path.length()
+        n = self.ntabs
+        if not n:
+            return [(0, l, False)]
+        slices = []
+        for i in range(n):
+            slices.append((i * l / n, (i + 1) * l / n - self.parent.tab_width, False))
+            slices.append(((i + 1) * l / n - self.parent.tab_width, (i + 1) * l / n, True))
+        return slices
+    def generateFullPaths(self):
+        p = self.parent
+        if p.direction == ShapeDirection.OUTLINE:
+            return [self.item.nodes]
+        elif p.direction == ShapeDirection.POCKET:
+            paths = []
+            r = -p.tool.diameter / 2.0
+            while True:
+                newparts = offset(self.item.nodes, r)
+                if not newparts:
+                    break
+                paths.append(newparts)
+                r -= 0.75 * 0.5 * p.tool.diameter
+            offsets = []
+            for p in reversed(paths):
+                offsets += p
+            return offsets
+        elif p.direction == ShapeDirection.OUTSIDE:
+            r = p.tool.diameter / 2.0
+        elif p.direction == ShapeDirection.INSIDE:
+            r = -p.tool.diameter / 2.0
+
+        return offset(self.item.nodes, r)
+
 
 class CAMOperation(object):
-    def __init__(self, direction, parent, tool):
+    def __init__(self, direction, shapes, tool):
+        self.tool = tool
         self.zstart = float(defaultZStart)
         self.zend = float(defaultZEnd)
         self.tab_height = float(defaultTabHeight)
-        self.direction = direction
-        self.parent = parent
-        self.tool = tool
-        self.ntabs = 0 if direction == ShapeDirection.OUTLINE or direction == ShapeDirection.POCKET else 4
         self.tab_width = 1.5 * self.tool.diameter
-        self.fullPaths = self.generateFullPaths()
-        self.previewPaths = self.generatePreviewPaths()
+        self.tab_spacing = 200
+        self.min_tabs = defaultMinTabs
+        self.max_tabs = defaultMaxTabs
+        self.direction = direction
+        self.shapes = [CAMOperationShape(shape, self) for shape in shapes]
+        self.update()
+    def update(self):
+        for i in self.shapes:
+            i.update()
+        self.previewPaths = self.generatePreviewPaths()        
     def description(self):
         s = ""
         if self.direction == ShapeDirection.OUTLINE:
@@ -35,50 +86,18 @@ class CAMOperation(object):
             s += "profile"
         elif self.direction == ShapeDirection.INSIDE:
             s += "cutout"
-        s += ": " + self.parent.typeName()
+        s += ": " + (", ".join([i.item.typeName() for i in self.shapes]))
         return s
-    def generateFullPaths(self):
-        if self.direction == ShapeDirection.OUTLINE:
-            return [self.parent]
-        elif self.direction == ShapeDirection.POCKET:
-            paths = []
-            r = -self.tool.diameter / 2.0
-            while True:
-                newparts = offset(self.parent.nodes, r)
-                if not newparts:
-                    break
-                paths.append(newparts)
-                r -= 0.75 * 0.5 * self.tool.diameter
-            offsets = []
-            for p in reversed(paths):
-                offsets += p
-            return offsets
-        elif self.direction == ShapeDirection.OUTSIDE:
-            r = self.tool.diameter / 2.0
-        elif self.direction == ShapeDirection.INSIDE:
-            r = -self.tool.diameter / 2.0
-
-        return offset(self.parent.nodes, r)
-
-    def generateTabs(self, path):
-        l = path.length()
-        n = self.ntabs
-        if not n:
-            return [(0, l, False)]
-        slices = []
-        for i in range(n):
-            slices.append((i * l / n, (i + 1) * l / n - self.tab_width, False))
-            slices.append(((i + 1) * l / n - self.tab_width, (i + 1) * l / n, True))
-        return slices
 
     def generatePreviewPaths(self):
         paths = []
-        for p in self.fullPaths:
-            for start, end, is_tab in self.generateTabs(p):
-                if not is_tab:
-                    c = p.cut(start, end)
-                    if c is not None:
-                        paths.append(c)
+        for s in self.shapes:
+            for p in s.fullPaths:
+                for start, end, is_tab in s.generateTabs(p):
+                    if not is_tab:
+                        c = p.cut(start, end)
+                        if c is not None:
+                            paths.append(c)
         return paths
 
 class CAMOperationItem(QStandardItem):
@@ -107,7 +126,9 @@ class CAMOperationsModel(QStandardItemModel):
     def __init__(self):
         QStandardItemModel.__init__(self)
     def addOperation(self, op):
+        nrows = self.rowCount()
         self.appendRow(CAMOperationItem(op))
+        return self.index(nrows, 0)
     def delOperations(self, fn):
         for i in xrange(self.rowCount() - 1, -1, -1):
             if fn(self.item(i).operation):
