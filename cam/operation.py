@@ -19,25 +19,30 @@ class CAMOperationShape(object):
         self.item = item
         self.parent = parent
     def update(self):
-        if self.parent.direction in (ShapeDirection.OUTLINE, ShapeDirection.POCKET):
+        if self.parent.direction in (ShapeDirection.OUTLINE, ShapeDirection.POCKET) or self.parent.tab_height == 0:
             self.ntabs = 0
         else:
             self.ntabs = max(self.parent.min_tabs, min(self.parent.max_tabs, int(1 + self.item.length() // self.parent.tab_spacing)))
         self.fullPaths = self.generateFullPaths()
-    def generateTabs(self, path):
+    def generateTabs(self, path, tool):
         l = path.length()
         n = self.ntabs
         if not n:
             return [(0, l, False)]
         slices = []
+        tw = self.parent.tab_width if self.parent.tab_width is not None else 0.5 * tool.diameter
+        tw += tool.diameter
         for i in range(n):
-            slices.append((i * l / n, (i + 1) * l / n - self.parent.tab_width, False))
-            slices.append(((i + 1) * l / n - self.parent.tab_width, (i + 1) * l / n, True))
+            slices.append((i * l / n, (i + 1) * l / n - tw, False))
+            slices.append(((i + 1) * l / n - tw, (i + 1) * l / n, True))
         return slices
     def generateFullPaths(self):
         p = self.parent
         if p.direction == ShapeDirection.OUTLINE:
-            return [self.item.nodes]
+            if type(self.item) is DrawingPolyline:
+                return self.item.nodes
+            else:
+                return [self.item]
         elif p.direction == ShapeDirection.POCKET:
             paths = []
             r = -p.tool.diameter / 2.0
@@ -64,8 +69,8 @@ class CAMOperation(object):
         self.tool = tool
         self.zstart = float(defaultZStart)
         self.zend = float(defaultZEnd)
-        self.tab_height = float(defaultTabHeight)
-        self.tab_width = 1.5 * self.tool.diameter
+        self.tab_height = None
+        self.tab_width = None
         self.tab_spacing = 200
         self.min_tabs = defaultMinTabs
         self.max_tabs = defaultMaxTabs
@@ -87,13 +92,14 @@ class CAMOperation(object):
         elif self.direction == ShapeDirection.INSIDE:
             s += "cutout"
         s += ": " + (", ".join([i.item.typeName() for i in self.shapes]))
+        if self.zend is not None:
+            s += ", depth=%0.2fmm" % (-self.zend)
         return s
-
     def generatePreviewPaths(self):
         paths = []
         for s in self.shapes:
             for p in s.fullPaths:
-                for start, end, is_tab in s.generateTabs(p):
+                for start, end, is_tab in s.generateTabs(p, self.tool):
                     if not is_tab:
                         c = p.cut(start, end)
                         if c is not None:
@@ -147,7 +153,7 @@ class CAMOperationsModel(QStandardItemModel):
             for s in o.shapes:
                 for p in s.fullPaths:
                     z = o.zstart
-                    tabs = s.generateTabs(p)
+                    tabs = s.generateTabs(p, o.tool)
                     while z > o.zend:
                         z -= o.tool.depth
                         if z < o.zend:

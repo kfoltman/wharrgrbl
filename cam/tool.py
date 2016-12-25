@@ -27,6 +27,7 @@ class CAMTool(object):
         self.feed = float(feed)
         self.plunge = float(plunge)
         self.depth = float(depth)
+        self.length = None
         self.clearance = 5
     def begin(self):
         return []
