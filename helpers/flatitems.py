@@ -148,7 +148,7 @@ class DrawingArc(DrawingItem):
         c1 = circ(p1, -r, alpha)
         c2 = circ(p2, -r, beta)
         if pdist(c1, c2) > eps:
-            print "No solution exists - too far away"
+            print "No solution exists - too far away - %f" % pdist(c1, c2)
             return # No solution exists
         c = interp(c1, c2, 0.5)
         xc, yc = c.x(), c.y()
@@ -287,6 +287,14 @@ def findOrientation(nodes):
                 angle += la
     if abs(angle) < 1.99 * math.pi:
         print "Not a closed shape ? %f" % (angle * 180 / math.pi)
+        if False:
+            for i in range(len(nodes)):
+                if type(nodes[i]) is DrawingArc:
+                    da = nodes[i].span
+                    da += nangle((nodes[(i + 1) % len(nodes)].startAngle - nodes[i].endAngle))
+                else:
+                    da = (nodes[(i + 1) % len(nodes)].startAngle - nodes[i].startAngle)
+                print nodes[i], "%0.3f" % (da * 180 / math.pi)
         if abs(angle) < defaultEps:
             return 0
     if angle < 0:
@@ -520,35 +528,19 @@ def removeLoops(nodes2):
 
 def removeReversals(nodes):
     i = 0
-    res = []
-    while i < len(nodes):
-        if i < len(nodes) - 1:
-            n1 = nodes[i]
-            n2 = nodes[i + 1]
-            if type(n1) is DrawingLine and type(n2) is DrawingLine:
-                angle = n1.toLine().angleTo(n2.toLine())
-                if abs(angle - 180) < defaultEps:
-                    print 'Reversal!!!'
-            res.append(nodes[i])
-        else:
-            res.append(nodes[i])
-        i += 1
-    return res
-
-def removeReversals(nodes):
-    i = 0
-    res = []
-    for i in range(len(nodes)):
+    while i < len(nodes) - 1:
         n1 = nodes[i]
-        n2 = nodes[(i + 1) % len(nodes)]
+        n2 = nodes[i + 1]
         if type(n1) is DrawingLine and type(n2) is DrawingLine:
             angle = n1.toLine().angleTo(n2.toLine())
-            print angle
-            if abs(angle - 180) < 1:
-                print 'Reversal!!!'
-        res.append(nodes[i])
-    return res
-
+            if abs(angle - 180) < defaultEps:
+                print "Removing reversal"
+                nodes[i] = DrawingLine(n1.start, n2.end)
+                del nodes[i + 1]
+                i = 0
+                continue
+        i += 1
+    return nodes
 
 def arcsToLines(nodes):
     res = []
@@ -633,38 +625,69 @@ def plugSmallGaps(nodes):
         last = n
     return res
     
-def findLoops(nodes):
-    points = collections.Counter()
-    for n in nodes:
-        points[(n.start.x(), n.start.y())] += 1
-        points[(n.end.x(), n.end.y())] += 1
-    loops = []
-    i = 1
-    low = 0
-    while i < len(nodes):
-        n = nodes[i]
-        np = (n.start.x(), n.start.y())
-        if points[np] > 2:
-            j = len(nodes) - 1
-            while j > i:
-                n2 = nodes[j]
-                n2p = (n2.end.x(), n2.end.y())
-                if n2p == np:
-                    c1 = DrawingPolyline(nodes[i : j + 1])
-                    c2 = DrawingPolyline(nodes[:i] + nodes[j + 1:])
-                    assert c1.nodes[0].start == c1.nodes[-1].end
-                    assert c2.nodes[0].start == c2.nodes[-1].end
-                    return [c1, c2]
-                j -= 1
-            break
-        i += 1
-    return [DrawingPolyline(nodes)]
+def removeLoops2(nodes):
+    def treat(x, y):
+        m = 100000.0
+        return (int(x * m) / m, int(y * m) / m)
+    def treatp(p):
+        return treat(p.x(), p.y())
+    def yrange(s, e):
+        if s < e:
+            return range(s, e)
+        else:
+            return range(s, len(nodes)) + range(0, e)
+    points = collections.defaultdict(lambda: ([], []))
+    for i, n in enumerate(nodes):
+        s = treat(n.start.x(), n.start.y())
+        e = treat(n.end.x(), n.end.y())
+        if s == e:
+            print "Warning: segment %d is short (%f)" % (i, pdist(n.start, n.end))
+            continue
+        points[s][0].append(i)
+        points[e][1].append(i)
+    #for p in points:
+    #    print p, points[p]
+    suspected = set([])
+    for p in points.values():
+        if len(p[0]) > 1:
+            sets = {}
+            for i in xrange(len(p[0])):
+                egress = p[0][i - 1]
+                egress2 = (p[1][i] + 1) % len(nodes)
+                sna = 0
+                #print "-----"
+                yr = yrange(egress, egress2)
+                sets[len(yr)] = yr
+                #print (nodes[egress].start), (nodes[egress2].start)
+                xnodes = []
+                for j in yrange(egress, egress2):
+                    xnodes.append(nodes[j])
+                #print findOrientation(xnodes)
+            # Note: this is totally dodgy. Instead of trying to find the orientation
+            # of the specific subsets, I'm simply assuming that everything but the
+            # longest loop is to be removed.
+            maxv = max(sets.keys())
+            for i in sets:
+                if i == maxv:
+                    continue
+                for j in sets[i]:
+                    suspected.add(j)
+    #print suspected
+    plines = []
+    for i, n in enumerate(nodes):
+        if i not in suspected:
+            if not len(plines) or treatp(n.start) != treatp(plines[-1][-1].end):
+                plines.append([])
+            plines[-1].append(n)
+    if len(plines) > 1 and treatp(plines[-1][-1].end) == treatp(plines[0][0].start):
+        plines[0] = plines[-1] + plines[0]
+        del plines[-1]
+    return [DrawingPolyline(n) for n in plines if treatp(n[-1].end) == treatp(n[0].start)]
 
 def offset(nodes, r):
     reverse = findOrientation(nodes) > 0
     if reverse:
         nodes = reversed_nodes(nodes)
-    nodes = arcsToLines(nodes)
     nodes2 = []
     s = math.pi / 2
     if r < 0:
@@ -696,7 +719,7 @@ def offset(nodes, r):
                         nodes2[-1].end = isl[0][0]
                         newl.start = isl[0][0]
                 nodes2.append(newl)
-        if type(this) is DrawingArc:
+        elif type(this) is DrawingArc:
             if (this.span < 0) != (s > 0):
                 newr = this.radius - r
             else:
@@ -705,6 +728,10 @@ def offset(nodes, r):
                 arc = DrawingArc(this.centre, newr, this.sangle, this.span)
                 arc.orig_start = this.start
                 nodes2.append(arc)
+            else:
+                newl = DrawingLine(start, end)
+                newl.orig_start = this.start
+                nodes2.append(newl)
     if traceOffsetCode:
         print "Add missing segments"
     nodes = list(nodes2)
@@ -731,15 +758,18 @@ def offset(nodes, r):
     #nodes2 = removeReversals(nodes2)
 
     # Bugs:
-    # method 2: bug.dxf, tool=7.3..8 mm
+    # method 1: bug.dxf, tool=4 mm - corners broken
+    # method 2: bug.dxf, tool=7.3..8 mm - breaks due to numerical instability in freeglut, workaround: quantize coordinates
+    # method 3: wrench1.dxf, tool=4 mm
 
-    mode = 2
-    if mode != 2:
-        nodes2 = eliminateCrossings(nodes2)
+    mode = 3
         
     nodes2 = replaceShortArcsWithLines(nodes2)
     #nodes2 = removeReversals(nodes2)
     nodes2 = plugSmallGaps(nodes2)
+    if mode != 2:
+        nodes2 = eliminateCrossings(nodes2)
+
     if mode == 1: # old method that checks the windings number by counting lines
         nodes2 = removeLoops(nodes2)
         if len(nodes2) < 2:
@@ -748,28 +778,13 @@ def offset(nodes, r):
             return [DrawingPolyline(reversed_nodes(nodes2))]
         else:
             return [DrawingPolyline(nodes2)]
-    if mode == 2: # method from the 2005 paper - approximate arcs and then run through GLU tesselator
+    elif mode == 2: # method from the 2005 paper - approximate arcs and then run through GLU tesselator
         return runGluTesselator(arcsToLines(nodes2))
-    if mode == 0: # leave the loops in (for debugging)
+    elif mode == 0: # leave the loops in (for debugging)
         if reverse:
             return [DrawingPolyline(reversed_nodes(nodes2))]
         else:
             return [DrawingPolyline(nodes2)]
-    if mode == 3:
-        data = [DrawingPolyline(nodes2)]
-        while True:
-            foundLoops = False
-            result = []
-            for i in data:
-                partial = findLoops(i.nodes)
-                if len(partial) > 1:
-                    foundLoops = True
-                result += partial
-            data = result
-            if not foundLoops:
-                break
-        res = []
-        for d in data:
-            if findOrientation(d.nodes) <= 0:
-                res.append(d)
+    elif mode == 3:
+        res = removeLoops2(nodes2)
         return res

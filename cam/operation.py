@@ -9,7 +9,7 @@ class ShapeDirection:
 
 # defaultTool = CAMTool(diameter = 2.0, feed = 200.0, plunge = 100.0, depth = 0.3)
 #defaultTool = CAMTool(diameter = 8, feed = 1200.0, plunge = 600.0, depth = 1.5)
-defaultTool = CAMTool(diameter = 4, feed = 1200.0, plunge = 600.0, depth = 1.5)
+defaultTool = CAMTool(diameter = 4.0, feed = 1200.0, plunge = 600.0, depth = 1.5)
 #defaultTool = CAMTool(diameter = 24, feed = 1200.0, plunge = 600.0, depth = 1.5)
 #defaultTool = CAMTool(diameter = 3.7, feed = 1200.0, plunge = 600.0, depth = 1.5)
 defaultZStart = 0

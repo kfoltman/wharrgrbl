@@ -28,6 +28,8 @@ def norm(dx, dy):
     return math.sqrt(dx ** 2 + dy ** 2)
 def pdist(p1, p2):
     return norm(p1.x() - p2.x(), p1.y() - p2.y())
+def tdist(p1, p2):
+    return norm(p1[0] - p2[0], p1[1] - p2[1])
 def circ(p, r, a):
     return QPointF(p.x() + r * math.cos(a), p.y() + r * math.sin(a))
 def circ2(p, r, a):
