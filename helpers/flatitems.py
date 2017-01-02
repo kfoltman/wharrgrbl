@@ -1,4 +1,5 @@
 import math
+import collections
 from helpers.geom import *
 from PyQt4.QtGui import *
 
@@ -103,6 +104,8 @@ class DrawingArc(DrawingItem):
         return False
     def inarcp(self, p):
         return self.inarc(tang(self.centre, p))
+    def interp(self, theta):
+        return circ(self.centre, self.radius, self.sangle + theta * self.span)
     def minY(self):
         y = min(self.start.y(), self.end.y())
         if self.inarc(-math.pi / 2):
@@ -184,9 +187,9 @@ class DrawingArc(DrawingItem):
             pp.lineTo(*viewer.project(self.maxX(), self.centre.y() + self.radius, 0))
         path.addPath(pp, viewer.getPen(self, is_virtual, is_debug))
         if not is_virtual or is_debug:
-            a = self.sangle
+            a = self.sangle + self.span / 10
             self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.startAngle, is_virtual, is_debug)
-            a = self.sangle + self.span
+            a = self.sangle + self.span * 9 / 10
             self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.endAngle, is_virtual, is_debug)
     def distanceTo(self, p):
         p = QPointF(*p)
@@ -280,9 +283,12 @@ def findOrientation(nodes):
         else:
             la = (nodes[(i + 1) % len(nodes)].startAngle - nodes[i].startAngle)
             la = nangle(la)
-            angle += la
+            if abs(la) < math.pi * 0.9999:
+                angle += la
     if abs(angle) < 1.99 * math.pi:
         print "Not a closed shape ? %f" % (angle * 180 / math.pi)
+        if abs(angle) < defaultEps:
+            return 0
     if angle < 0:
         return -1
         print "Shape to the right"
@@ -324,8 +330,6 @@ def intersections(d1, d2):
                 pts.append(d2.end)
             pts = list(set(pts))
             a = 0
-            if pts:
-                print pts, a
             return [(p, a) for p in pts]
         if d1.toLine().intersect(d2.toLine(), p) == QLineF.BoundedIntersection:
             return [(p, a)]
@@ -383,8 +387,7 @@ def intersections(d1, d2):
         return pts
     return []
 
-def removeLoops(nodes, doRemoveLoops):
-    orient = findOrientation(nodes)
+def eliminateCrossings(nodes):
     events = []
     splitpoints = {}
     if traceOffsetCode:
@@ -463,8 +466,10 @@ def removeLoops(nodes, doRemoveLoops):
             nodes2.append(n)
     if not nodes2:
         return []
-    if not doRemoveLoops:
-        return nodes2
+    return nodes2
+
+def removeLoops(nodes2):
+    orient = findOrientation(nodes2)
     lastAngle = nodes2[-1].startAngle
     sumAngle = 0
     points = {}
@@ -513,10 +518,153 @@ def removeLoops(nodes, doRemoveLoops):
         print ichecks, inochecks
     return nodes3
 
-def offset(nodes, r, doRemoveLoops = True):
+def removeReversals(nodes):
+    i = 0
+    res = []
+    while i < len(nodes):
+        if i < len(nodes) - 1:
+            n1 = nodes[i]
+            n2 = nodes[i + 1]
+            if type(n1) is DrawingLine and type(n2) is DrawingLine:
+                angle = n1.toLine().angleTo(n2.toLine())
+                if abs(angle - 180) < defaultEps:
+                    print 'Reversal!!!'
+            res.append(nodes[i])
+        else:
+            res.append(nodes[i])
+        i += 1
+    return res
+
+def removeReversals(nodes):
+    i = 0
+    res = []
+    for i in range(len(nodes)):
+        n1 = nodes[i]
+        n2 = nodes[(i + 1) % len(nodes)]
+        if type(n1) is DrawingLine and type(n2) is DrawingLine:
+            angle = n1.toLine().angleTo(n2.toLine())
+            print angle
+            if abs(angle - 180) < 1:
+                print 'Reversal!!!'
+        res.append(nodes[i])
+    return res
+
+
+def arcsToLines(nodes):
+    res = []
+    for n in nodes:
+        if type(n) is DrawingLine:
+            res.append(n)
+        else:
+            steps = int(1 + n.length() * 2)
+            for i in range(steps):
+                p1 = n.interp(i * 1.0/ steps)
+                p2 = n.interp((i + 1) * 1.0 / steps)
+                res.append(DrawingLine(p1, p2))
+    return res
+    
+def runGluTesselator(nodes):
+    from OpenGL import GL
+    from OpenGL import GLU
+
+    shapes = []
+    vertexes = []
+    def begin(shape):
+        assert shape == GL.GL_LINE_LOOP
+        shapes.append([])
+    def vertex(vertex):
+        if vertex is None:
+            vertex = vertexes.pop()
+        shapes[-1].append(vertex)
+    def error(args):
+        print "error", args
+    def combine(coords, vertex_data, weight, theTuple):
+        vertexes.append(coords)
+        return coords
+    #def end(*args, **kwargs):
+    #    pass
+
+    tess = GLU.gluNewTess()
+    GLU.gluTessCallback(tess, GLU.GLU_TESS_BEGIN, begin)
+    GLU.gluTessCallback(tess, GLU.GLU_TESS_VERTEX, vertex)
+    GLU.gluTessCallback(tess, GLU.GLU_TESS_COMBINE_DATA, combine)
+    GLU.gluTessCallback(tess, GLU.GLU_TESS_ERROR_DATA, error)
+    #GLU.gluTessCallback(tess, GLU.GLU_TESS_END_DATA, end)
+    GLU.gluTessProperty(tess, GLU.GLU_TESS_WINDING_RULE, GLU.GLU_TESS_WINDING_NEGATIVE)
+    #GLU.gluTessProperty(tess, GLU.GLU_TESS_WINDING_RULE, GLU.GLU_TESS_WINDING_NONZERO)
+    GLU.gluTessProperty(tess, GLU.GLU_TESS_BOUNDARY_ONLY, GLU.GLU_TRUE)
+    GLU.gluTessProperty(tess, GLU.GLU_TESS_TOLERANCE, 1.0 / 2048.0)
+    GLU.gluTessNormal(tess, 0.0, 0.0, 1.0)
+    GLU.gluBeginPolygon(tess, None)
+    def tweaked(p):
+        return (int(p.x() * 1024) / 1024.0, int(p.y() * 1024) / 1024.0, 0)
+    for n in nodes:
+        GLU.gluTessVertex(tess, (tweaked(n.start)), (n.start.x(), n.start.y()))
+    GLU.gluEndPolygon(tess)
+    res = []
+    for s in shapes:
+        nodes = []
+        for i in range(len(s)):
+            p1 = s[i]
+            p2 = s[(i + 1) % len(s)]
+            nodes.append(DrawingLine(QPointF(p1[0], p1[1]), QPointF(p2[0], p2[1])))
+        res.append(DrawingPolyline(nodes))
+    return res
+
+def replaceShortArcsWithLines(nodes2):
+    nodes3 = []
+    for n in nodes2:
+        if type(n) is DrawingArc and abs(n.span) < 0.001:
+            nodes3.append(DrawingLine(n.start, n.end))
+        else:
+            nodes3.append(n)
+    return nodes3
+
+def plugSmallGaps(nodes):
+    last = nodes[-1]
+    res = []
+    for n in nodes:
+        dist = pdist(n.start, last.end)
+        if dist > defaultEps:
+            print "Warning: points too far away (%f)" % dist
+        if dist > 0:
+            res.append(DrawingLine(last.end, n.start))
+        res.append(n)
+        last = n
+    return res
+    
+def findLoops(nodes):
+    points = collections.Counter()
+    for n in nodes:
+        points[(n.start.x(), n.start.y())] += 1
+        points[(n.end.x(), n.end.y())] += 1
+    loops = []
+    i = 1
+    low = 0
+    while i < len(nodes):
+        n = nodes[i]
+        np = (n.start.x(), n.start.y())
+        if points[np] > 2:
+            j = len(nodes) - 1
+            while j > i:
+                n2 = nodes[j]
+                n2p = (n2.end.x(), n2.end.y())
+                if n2p == np:
+                    c1 = DrawingPolyline(nodes[i : j + 1])
+                    c2 = DrawingPolyline(nodes[:i] + nodes[j + 1:])
+                    assert c1.nodes[0].start == c1.nodes[-1].end
+                    assert c2.nodes[0].start == c2.nodes[-1].end
+                    return [c1, c2]
+                j -= 1
+            break
+        i += 1
+    return [DrawingPolyline(nodes)]
+
+def offset(nodes, r):
     reverse = findOrientation(nodes) > 0
     if reverse:
         nodes = reversed_nodes(nodes)
+    nodes = arcsToLines(nodes)
     nodes2 = []
     s = math.pi / 2
     if r < 0:
@@ -580,11 +728,48 @@ def offset(nodes, r, doRemoveLoops = True):
         nodes2.append(this)
     if traceOffsetCode:
         print "Remove loops"
-    nodes2 = removeLoops(nodes2, doRemoveLoops)
-    if len(nodes2) < 2:
-        return []
-    if reverse:
-        return [DrawingPolyline(reversed_nodes(nodes2))]
-    else:
-        return [DrawingPolyline(nodes2)]
+    #nodes2 = removeReversals(nodes2)
 
+    # Bugs:
+    # method 2: bug.dxf, tool=7.3..8 mm
+
+    mode = 2
+    if mode != 2:
+        nodes2 = eliminateCrossings(nodes2)
+        
+    nodes2 = replaceShortArcsWithLines(nodes2)
+    #nodes2 = removeReversals(nodes2)
+    nodes2 = plugSmallGaps(nodes2)
+    if mode == 1: # old method that checks the windings number by counting lines
+        nodes2 = removeLoops(nodes2)
+        if len(nodes2) < 2:
+            return []
+        if reverse:
+            return [DrawingPolyline(reversed_nodes(nodes2))]
+        else:
+            return [DrawingPolyline(nodes2)]
+    if mode == 2: # method from the 2005 paper - approximate arcs and then run through GLU tesselator
+        return runGluTesselator(arcsToLines(nodes2))
+    if mode == 0: # leave the loops in (for debugging)
+        if reverse:
+            return [DrawingPolyline(reversed_nodes(nodes2))]
+        else:
+            return [DrawingPolyline(nodes2)]
+    if mode == 3:
+        data = [DrawingPolyline(nodes2)]
+        while True:
+            foundLoops = False
+            result = []
+            for i in data:
+                partial = findLoops(i.nodes)
+                if len(partial) > 1:
+                    foundLoops = True
+                result += partial
+            data = result
+            if not foundLoops:
+                break
+        res = []
+        for d in data:
+            if findOrientation(d.nodes) <= 0:
+                res.append(d)
+        return res

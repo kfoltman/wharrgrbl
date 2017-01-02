@@ -7,13 +7,17 @@ class ShapeDirection:
     OUTLINE = 3
     POCKET = 4
 
-defaultTool = CAMTool(diameter = 1.5 * 4, feed = 1200.0, plunge = 600.0, depth = 1.5)
-defaultMaterial = CAMMaterial(thickness = 6, clearance = 5)
+# defaultTool = CAMTool(diameter = 2.0, feed = 200.0, plunge = 100.0, depth = 0.3)
+#defaultTool = CAMTool(diameter = 8, feed = 1200.0, plunge = 600.0, depth = 1.5)
+defaultTool = CAMTool(diameter = 4, feed = 1200.0, plunge = 600.0, depth = 1.5)
+#defaultTool = CAMTool(diameter = 24, feed = 1200.0, plunge = 600.0, depth = 1.5)
+#defaultTool = CAMTool(diameter = 3.7, feed = 1200.0, plunge = 600.0, depth = 1.5)
 defaultZStart = 0
 defaultZEnd = None
 defaultTabHeight = 1
 defaultMinTabs = 2
 defaultMaxTabs = 4
+defaultMaterial = CAMMaterial(thickness = 6, clearance = 5)
 
 class CAMOperationShape(object):
     def __init__(self, item, parent):
@@ -51,7 +55,7 @@ class CAMOperationShape(object):
             debug = True
             count = 0
             while True:
-                newparts = offset(self.item.nodes, r, not debug)
+                newparts = offset(self.item.nodes, r)
                 if not newparts:
                     break
                 paths.append(newparts)
