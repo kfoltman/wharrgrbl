@@ -625,9 +625,9 @@ def plugSmallGaps(nodes):
         last = n
     return res
     
-def removeLoops2(nodes):
+def removeLoops2(nodes, orig, offset):
     def treat(x, y):
-        m = 100000.0
+        m = 1048576.0
         return (int(x * m) / m, int(y * m) / m)
     def treatp(p):
         return treat(p.x(), p.y())
@@ -636,6 +636,7 @@ def removeLoops2(nodes):
             return range(s, e)
         else:
             return range(s, len(nodes)) + range(0, e)
+    origpoints = set([treatp(i.start) for i in orig])
     points = collections.defaultdict(lambda: ([], []))
     for i, n in enumerate(nodes):
         s = treat(n.start.x(), n.start.y())
@@ -647,32 +648,53 @@ def removeLoops2(nodes):
         points[e][1].append(i)
     #for p in points:
     #    print p, points[p]
-    suspected = set([])
+    def isbad(pt):
+        for node in orig:
+            if node.distanceTo((pt.x(), pt.y())) < offset * 0.99:
+                return True
+        return False
+    collisions = set([])
     for p in points.values():
         if len(p[0]) > 1:
-            sets = {}
+            sets = []
             for i in xrange(len(p[0])):
+                if len(p[0]) != len(p[1]):
+                    print "Warning: mismatch egress vs ingress"
+                    continue
                 egress = p[0][i - 1]
                 egress2 = (p[1][i] + 1) % len(nodes)
                 sna = 0
                 #print "-----"
                 yr = yrange(egress, egress2)
-                sets[len(yr)] = yr
+                sets.append(yr)
                 #print (nodes[egress].start), (nodes[egress2].start)
                 xnodes = []
                 for j in yrange(egress, egress2):
                     xnodes.append(nodes[j])
                 #print findOrientation(xnodes)
-            # Note: this is totally dodgy. Instead of trying to find the orientation
-            # of the specific subsets, I'm simply assuming that everything but the
-            # longest loop is to be removed.
-            maxv = max(sets.keys())
-            for i in sets:
-                if i == maxv:
-                    continue
-                for j in sets[i]:
-                    suspected.add(j)
-    #print suspected
+            # Remove loops that contain edges too close to original edge
+            for ynodes in sets:
+                isLoop = False
+                for i, n in enumerate(ynodes):
+                    if not isLoop and isbad(nodes[n].start):
+                        isLoop = True
+                        collisions.add(n)
+                        # Scan backward
+                        while i > 0:
+                            n = ynodes[i - 1]
+                            if len(points[treatp(nodes[n].end)][1]) == 1:
+                                collisions.add(n)
+                                i -= 1
+                            else:
+                                break
+                    elif isLoop and len(points[treatp(nodes[n].start)][1]) == 1:
+                        # Scan forward
+                        collisions.add(n)
+                    else:
+                        isLoop = False
+                    
+    #print collisions
+    suspected = collisions
     plines = []
     for i, n in enumerate(nodes):
         if i not in suspected:
@@ -686,6 +708,7 @@ def removeLoops2(nodes):
 
 def offset(nodes, r):
     reverse = findOrientation(nodes) > 0
+    orig = list(nodes)
     if reverse:
         nodes = reversed_nodes(nodes)
     nodes2 = []
@@ -786,5 +809,5 @@ def offset(nodes, r):
         else:
             return [DrawingPolyline(nodes2)]
     elif mode == 3:
-        res = removeLoops2(nodes2)
+        res = removeLoops2(nodes2, orig, abs(r))
         return res
