@@ -33,6 +33,7 @@ class MyRubberBand(QRubberBand):
 
 class DXFViewer(PreviewBase):
     selected = pyqtSignal([])
+    mouseMoved = pyqtSignal([])
     def __init__(self, drawing):
         PreviewBase.__init__(self)
         self.objects = dxfToObjects(drawing)
@@ -40,6 +41,7 @@ class DXFViewer(PreviewBase):
         self.selection = None
         self.opSelection = []
         self.curOperation = None
+        self.lastMousePos = None
         self.updateCursor()
     def getPen(self, item, is_virtual, is_debug):
         if is_virtual:
@@ -49,7 +51,7 @@ class DXFViewer(PreviewBase):
             if not is_debug:
                 pen = QPen(color, self.curOperation.tool.diameter * self.getScale())
             else:
-                pen = QPen(QColor(128, 0, 0), 1)
+                pen = QPen(QColor(0, 255, 255), 1)
             pen.setCapStyle(Qt.RoundCap)
             pen.setJoinStyle(Qt.RoundJoin)
             return pen
@@ -126,6 +128,8 @@ class DXFViewer(PreviewBase):
         if self.selection and self.selection.isVisible():
             self.selection.setGeometry(QRect(self.selectionOrigin, e.pos()).normalized())
         PreviewBase.mouseMoveEvent(self, e)
+        self.lastMousePos = self.physToLog(e.posF())
+        self.mouseMoved.emit()
     def mouseReleaseEvent(self, e):
         if self.selection and self.selection.isVisible():
             ps = self.unproject(self.selectionOrigin.x(), self.selectionOrigin.y())
@@ -227,6 +231,8 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.toolbar.addAction("Material").triggered.connect(self.onOperationMaterial)
         self.toolbar.addAction("Debug").triggered.connect(self.onOperationDebug)
         self.addToolBar(self.toolbar)
+        self.statusbar = QStatusBar()
+        self.setStatusBar(self.statusbar)
         self.viewer = DXFViewer(drawing)
         self.operationTree = OperationTreeWidget(self.viewer)
         self.objectProperties = ObjectPropertiesWidget(self.viewer)
@@ -242,6 +248,9 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         for i in self.viewer.objects:
             i.setMarked(True)
         self.onOperationPocket()
+        self.viewer.mouseMoved.connect(self.updateStatus)
+    def updateStatus(self):
+        self.statusBar().showMessage(str(self.viewer.lastMousePos))
     def onOperationsSelected(self):
         selected = self.operationTree.getSelected()
         self.objectProperties.setOperations(selected)
