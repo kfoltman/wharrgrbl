@@ -397,6 +397,11 @@ def intersections(d1, d2):
     return []
 
 def eliminateCrossings(nodes):
+    def cmpEvent(ev1, ev2):
+        res = cmp(ev1[0], ev2[0])
+        if res:
+            return res
+        return cmp(ev1[3], ev2[3])
     events = []
     splitpoints = {}
     if traceOffsetCode:
@@ -405,20 +410,22 @@ def eliminateCrossings(nodes):
         if type(n) is DrawingLine:
             splitpoints[n] = []
             if n.start.x() == n.end.x():
-                events.append((n.start.x(), 'L', n))
+                x = n.start.x()
+                events.append((x, 'S', n, min(n.start.y(), n.end.y())))
+                events.append((x, 'E', n, max(n.start.y(), n.end.y())))
             else:
                 if n.start.x() < n.end.x():
-                    events.append((n.start.x(), 'S', n))
-                    events.append((n.end.x(), 'E', n))
+                    events.append((n.start.x(), 'S', n, n.start.y()))
+                    events.append((n.end.x(), 'E', n, n.end.y()))
                 else:
-                    events.append((n.end.x(), 'S', n))
-                    events.append((n.start.x(), 'E', n))
+                    events.append((n.end.x(), 'S', n, n.end.y()))
+                    events.append((n.start.x(), 'E', n, n.end.x()))
         if type(n) is DrawingArc:
             splitpoints[n] = []
             assert(n.minX() <= n.maxX())
-            events.append((n.minX(), 'S', n))
-            events.append((n.maxX(), 'E', n))
-    events = sorted(events, lambda x, y: cmp(x[0], y[0]))
+            events.append((n.minX(), 'S', n, n.minY()))
+            events.append((n.maxX(), 'E', n, n.maxY()))
+    events = sorted(events, cmpEvent)
     cur_lines = set()
     for e in events:
         #print e, cur_lines
