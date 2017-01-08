@@ -1,20 +1,22 @@
 from helpers.flatitems import *
 import dxfgrabber
+import dxfgrabber.dxfentities
 
 def dxfToObjects(drawing):
     objects = []
+    entities = dxfgrabber.dxfentities
     for i in drawing.entities.get_entities():
         it = type(i)
-        if it is dxfgrabber.entities.Circle:
+        if it is entities.Circle:
             objects.append(DrawingCircle(QPointF(i.center[0], i.center[1]), i.radius))
-        elif it is dxfgrabber.entities.Arc:
+        elif it is entities.Arc:
             if i.endangle > i.startangle:
                 objects.append(DrawingArc(QPointF(i.center[0], i.center[1]), i.radius, i.endangle * math.pi / 180.0, (i.startangle - i.endangle) * math.pi / 180.0))
             else:
                 objects.append(DrawingArc(QPointF(i.center[0], i.center[1]), i.radius, i.startangle * math.pi / 180.0, twopi + (i.endangle - i.startangle) * math.pi / 180.0))
-        elif it is dxfgrabber.entities.Line:
+        elif it is entities.Line:
             objects.append(DrawingLine(QPointF(i.start[0], i.start[1]), QPointF(i.end[0], i.end[1])))
-        elif it is dxfgrabber.entities.LWPolyline:
+        elif it is entities.LWPolyline:
             nodes = []
             points = []
             for p in range(len(i.points)):
