@@ -737,7 +737,7 @@ def removeLoops2old(nodes):
 
 def removeLoops2(nodes):
     def treat(x, y):
-        m = 1048576
+        m = 1048576.0
         return (int(x * m + 0.5) / m, int(y * m + 0.5) / m)
         #return (x, y)
     def treatp(p):
@@ -774,6 +774,12 @@ def removeLoops2(nodes):
             del weights[(e, s)]
     for v in vertexes.values():
         v.sort()
+        vp = treat(v.x, v.y)
+        wc = 0
+        for etype, edge, incoming, other in v.events:
+            w = weights[edge] * (1 if incoming else -1)
+            wc += w
+        assert wc == 0
     windings = {}
     shapes = []
     order = sorted(vertexes.keys())
@@ -789,7 +795,8 @@ def removeLoops2(nodes):
         windings[edge] = wc
         if not incoming:
             wc += weights[edge]
-        vertexq.add(other)
+        if not incoming:
+            vertexq.add(other)
     assert wc == 0
     completed.add(first)
     while len(vertexq) > 0:
@@ -823,7 +830,7 @@ def removeLoops2(nodes):
                 assert windings[edge] == wc, "%d vs %d" % (windings[edge], wc)
             if not incoming:
                 wc += weights[edge]
-            if other not in completed:
+            if other not in completed and not incoming:
                 vertexq.add(other)
         wc = 0
         for etype, edge, incoming, other in v.events:
