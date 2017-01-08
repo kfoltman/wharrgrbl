@@ -2,6 +2,7 @@ import math
 import collections
 from helpers.geom import *
 from PyQt4.QtGui import *
+import sys
 
 # Extend the bounds to account for numerical errors
 boundsMargin = 0.01
@@ -552,6 +553,10 @@ def arcsToLines(nodes):
             for i in range(steps):
                 p1 = n.interp(i * 1.0/ steps)
                 p2 = n.interp((i + 1) * 1.0 / steps)
+                if i == 0:
+                    p1 = n.start
+                if i + 1 == steps:
+                    p2 = n.end
                 res.append(DrawingLine(p1, p2))
     return res
     
@@ -620,97 +625,232 @@ def plugSmallGaps(nodes):
         if dist > defaultEps:
             print "Warning: points too far away (%f)" % dist
         if dist > 0:
-            res.append(DrawingLine(last.end, n.start))
+            if type(n) is DrawingLine:
+                res.append(DrawingLine(last.end, n.end))
+                last = res[-1]
+                continue
+            elif type(last) is DrawingLine and len(res):
+                res[-1] = DrawingLine(last.start, n.start)
+            else:
+                res.append(DrawingLine(last.end, n.start))
         res.append(n)
         last = n
     return res
-    
-def removeLoops2(nodes, orig, offset):
+
+class VertexEvent(object):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.events = []
+    def addEdge(self, edge, other, incoming):
+        if other[0] > self.x:
+            self.events.append(('S', edge, incoming, other))
+        elif other[0] < self.x:
+            self.events.append(('E', edge, incoming, other))
+        else:
+            if other[1] < self.y:
+                self.events.append(('E', edge, incoming, other))
+            elif other[1] > self.y:
+                self.events.append(('S', edge, incoming, other))
+    def sort(self):
+        # This is wrong - should sort by tangent
+        #def tangent(pt):
+        #    return QLineF(qpxy(self.x, self.y), pt[2]).angle()
+        def tangent(pt):
+            return QLineF(qpxy(self.x, self.y), pt[2]).angleTo(QLineF(qpxy(0, 0), qpxy(0, 1)))
+        def angle(edge, incoming):
+            if incoming:
+                return -nangle(-edge.endAngle - math.pi)
+            else:
+                return -nangle(-edge.startAngle)
+            #return (edge.endAngle if incoming else edge.startAngle)
+        sp = qpxy(self.x, self.y)
+        #self.events = sorted(self.events, lambda a, b: cmp(a[0], b[0]) or cmp(tang(sp, qp(a[3])), tang(sp, qp(b[3]))))
+        #self.events = sorted(self.events, lambda a, b: -cmp(tang(sp, qp(a[3])), tang(sp, qp(b[3]))))
+        self.events = sorted(self.events, lambda a, b: -cmp(angle(a[1], a[2]), angle(b[1], b[2])))
+    def __repr__(self):
+        s = "(%0.3f, %0.3f)" % (self.x, self.y)
+        return s
+
+class Shape(object):
+    def __init__(self, incoming):
+        self.incoming = incoming
+        self.edges = []
+    def addEdge(self, edge):
+        self.edges.append(edge)
+
+def removeLoops2old(nodes):
     def treat(x, y):
         m = 1048576.0
         return (int(x * m) / m, int(y * m) / m)
     def treatp(p):
         return treat(p.x(), p.y())
-    def yrange(s, e):
-        if s < e:
-            return range(s, e)
-        else:
-            return range(s, len(nodes)) + range(0, e)
-    origpoints = set([treatp(i.start) for i in orig])
-    points = collections.defaultdict(lambda: ([], []))
+    coords = set([])
     for i, n in enumerate(nodes):
-        s = treat(n.start.x(), n.start.y())
-        e = treat(n.end.x(), n.end.y())
-        if s == e:
-            print "Warning: segment %d is short (%f)" % (i, pdist(n.start, n.end))
+        s = treatp(n.start)
+        e = treatp(n.end)
+        if s not in coords:
+            coords.add(s)
+        if e not in coords:
+            coords.add(e)
+    vertexes = {}
+    for c in coords:
+        vertexes[c] = VertexEvent(*c)
+    for i, n in enumerate(nodes):
+        s = treatp(n.start)
+        e = treatp(n.end)
+        vertexes[s].addEdge(n, e, False)
+        vertexes[e].addEdge(n, s, True)
+    # XXXKF remove overlapping opposite edges
+    for v in vertexes.values():
+        v.sort()
+    order = sorted(vertexes.keys())
+    workset = {}
+    shapes = []
+    for i, v in enumerate(order):
+        ve = vertexes[v]
+        print i, ve,
+        vstack = []
+        for etype, edge, incoming, other in ve.events:
+            if etype == 'S':
+                if len(vstack) == 0:
+                    shape = Shape(incoming)
+                    workset[edge] = shape
+                else:
+                    shape = vstack.pop(0)
+                    workset[edge] = shape
+                shape.addEdge(edge)
+            if etype == 'E':
+                vstack.append(workset[edge])
+                del workset[edge]
+                if len(vstack) == 2:
+                    vstack[0].edges += reversed(vstack[1].edges)
+                    del vstack[1]
+            print "%s%s%s" % (etype, "i" if incoming else "o", other),
+        print len(vstack)
+        while len(vstack) >= 1:
+            shapes.append(vstack[0].edges)
+            vstack = vstack[1:]
+    assert workset == {}
+    shapes = [shapes[4]]
+    return [DrawingPolyline(x) for x in shapes]
+
+def removeLoops2(nodes):
+    def treat(x, y):
+        m = 1048576
+        return (int(x * m + 0.5) / m, int(y * m + 0.5) / m)
+        #return (x, y)
+    def treatp(p):
+        return treat(p.x(), p.y())
+    coords = set([])
+    weights = collections.defaultdict(lambda: 0)
+    pairs = set([])
+    for i, n in enumerate(nodes):
+        s = treatp(n.start)
+        e = treatp(n.end)
+        if s not in coords:
+            coords.add(s)
+        if e not in coords:
+            coords.add(e)
+    vertexes = {}
+    for c in coords:
+        vertexes[c] = VertexEvent(*c)
+    #print coords
+    for i, n in enumerate(nodes):
+        s = treatp(n.start)
+        e = treatp(n.end)
+        weights[(s, e)] += 1
+        weights[(e, s)] -= 1
+    #print "---"
+    for i, n in enumerate(nodes):
+        s = treatp(n.start)
+        e = treatp(n.end)
+        if s != e and weights[(s, e)] > 0:
+            assert weights[(e, s)] == -weights[(s, e)]
+            weights[n] = weights[(s, e)]
+            vertexes[s].addEdge(n, e, False)
+            vertexes[e].addEdge(n, s, True)
+            del weights[(s, e)]
+            del weights[(e, s)]
+    for v in vertexes.values():
+        v.sort()
+    windings = {}
+    shapes = []
+    order = sorted(vertexes.keys())
+    first = vertexes[order[0]]
+    wc = 0
+    vertexq = set([])
+    completed = set([])
+    #print "First %s" % first
+    for etype, edge, incoming, other in first.events:
+        if incoming:
+            wc -= weights[edge]
+        #print "%s %s wc=%d" % ("To" if not incoming else "From", other, wc)
+        windings[edge] = wc
+        if not incoming:
+            wc += weights[edge]
+        vertexq.add(other)
+    assert wc == 0
+    completed.add(first)
+    while len(vertexq) > 0:
+        vpos = list(vertexq).pop()
+        v = vertexes[vpos]
+        vertexq.remove(vpos)
+        if v in completed:
             continue
-        points[s][0].append(i)
-        points[e][1].append(i)
-    #for p in points:
-    #    print p, points[p]
-    def isbad(pt):
-        for node in orig:
-            if node.distanceTo((pt.x(), pt.y())) < offset * 0.99:
-                return True
-        return False
-    collisions = set([])
-    for p in points.values():
-        if len(p[0]) > 1:
-            sets = []
-            for i in xrange(len(p[0])):
-                if len(p[0]) != len(p[1]):
-                    print "Warning: mismatch egress vs ingress"
-                    continue
-                egress = p[0][i - 1]
-                egress2 = (p[1][i] + 1) % len(nodes)
-                sna = 0
-                #print "-----"
-                yr = yrange(egress, egress2)
-                sets.append(yr)
-                #print (nodes[egress].start), (nodes[egress2].start)
-                xnodes = []
-                for j in yrange(egress, egress2):
-                    xnodes.append(nodes[j])
-                #print findOrientation(xnodes)
-            # Remove loops that contain edges too close to original edge
-            for ynodes in sets:
-                isLoop = False
-                for i, n in enumerate(ynodes):
-                    if not isLoop and isbad(nodes[n].start):
-                        isLoop = True
-                        collisions.add(n)
-                        # Scan backward
-                        while i > 0:
-                            n = ynodes[i - 1]
-                            if len(points[treatp(nodes[n].end)][1]) == 1:
-                                collisions.add(n)
-                                i -= 1
-                            else:
-                                break
-                    elif isLoop and len(points[treatp(nodes[n].start)][1]) == 1:
-                        # Scan forward
-                        collisions.add(n)
-                    else:
-                        isLoop = False
-                    
-    #print collisions
-    suspected = collisions
-    plines = []
-    for i, n in enumerate(nodes):
-        if i not in suspected:
-            if not len(plines) or treatp(n.start) != treatp(plines[-1][-1].end):
-                plines.append([])
-            plines[-1].append(n)
-    if len(plines) > 1 and treatp(plines[-1][-1].end) == treatp(plines[0][0].start):
-        plines[0] = plines[-1] + plines[0]
-        del plines[-1]
-    return [DrawingPolyline(n) for n in plines if treatp(n[-1].end) == treatp(n[0].start)]
+        #print "At %s" % v
+        i = 0
+        for i, ev in enumerate(v.events):        
+            etype, edge, incoming, other = ev
+            if edge in windings:
+                break
+        else:
+            assert False
+        wc = windings[edge]
+        events = v.events[i + 1:] + v.events[:i]
+        if not incoming:
+            wc += weights[edge]
+        #print "Checked:", etype, edge, incoming, other
+        for etype, edge, incoming, other in events:
+            #print "Checking:", etype, edge, incoming, other
+            if incoming:
+                wc -= weights[edge]
+            #print "Setting to %d" % wc
+            if edge not in windings:
+                windings[edge] = wc
+            else:
+                #windings[edge] = min(wc, windings[edge])
+                assert windings[edge] == wc, "%d vs %d" % (windings[edge], wc)
+            if not incoming:
+                wc += weights[edge]
+            if other not in completed:
+                vertexq.add(other)
+        wc = 0
+        for etype, edge, incoming, other in v.events:
+            if incoming:
+                wc -= weights[edge]
+            else:
+                wc += weights[edge]
+        assert wc == 0
+        completed.add(v)
+        #break
+    #for edge, w in windings.items():
+    #    print edge.start, edge.end, w
+    #sys.exit(1)
+    #return [DrawingPolyline(x) for x in shapes]
+    nodes = [n for n in nodes if n in windings and windings[n] <= 0 and windings[n] + weights[n] >= 1]
+    if len(nodes):
+        return [DrawingPolyline(nodes)]
+    else:
+        return []
 
 def offset(nodes, r):
+    nodes = plugSmallGaps(nodes)
     reverse = findOrientation(nodes) > 0
     orig = list(nodes)
     if reverse:
         nodes = reversed_nodes(nodes)
+    #return removeLoops2(eliminateCrossings(nodes))
     nodes2 = []
     s = math.pi / 2
     if r < 0:
@@ -786,12 +926,13 @@ def offset(nodes, r):
     # method 3: wrench1.dxf, tool=4 mm
 
     mode = 3
-        
+
     nodes2 = replaceShortArcsWithLines(nodes2)
     #nodes2 = removeReversals(nodes2)
     nodes2 = plugSmallGaps(nodes2)
     if mode != 2:
         nodes2 = eliminateCrossings(nodes2)
+        nodes2 = plugSmallGaps(nodes2)
 
     if mode == 1: # old method that checks the windings number by counting lines
         nodes2 = removeLoops(nodes2)
@@ -809,5 +950,5 @@ def offset(nodes, r):
         else:
             return [DrawingPolyline(nodes2)]
     elif mode == 3:
-        res = removeLoops2(nodes2, orig, abs(r))
+        res = removeLoops2(removeReversals(nodes2))
         return res
