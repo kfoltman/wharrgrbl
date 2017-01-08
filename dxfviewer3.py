@@ -250,7 +250,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.onOperationPocket()
         self.viewer.mouseMoved.connect(self.updateStatus)
     def updateStatus(self):
-        self.statusBar().showMessage(str(self.viewer.lastMousePos))
+        self.statusBar().showMessage("(%0.3f, %0.3f)" % (self.viewer.lastMousePos))
     def onOperationsSelected(self):
         selected = self.operationTree.getSelected()
         self.objectProperties.setOperations(selected)
