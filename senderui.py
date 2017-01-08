@@ -345,6 +345,7 @@ class CNCPendant(QtGui.QGroupBox):
                     'D' : "Door",
                     'H' : "Hold",
                     'R' : "Reset",
+                    'P' : "Probe",
                 }
                 fs.append("Pins: %s" % "".join(accNames[pin] for pin in g.pins))
             self.feedSpeedWidget.setText(" | ".join(fs))
