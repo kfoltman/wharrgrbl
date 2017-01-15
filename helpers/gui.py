@@ -198,3 +198,28 @@ class PropertySheetWidget(QTableWidget):
         self.setEnabled(len(self.objects) > 0)
         for i in xrange(len(self.properties)):
             self.refreshRow(i)
+
+class PropertyDialog(QDialog):
+    def __init__(self, subject, properties):
+        QDialog.__init__(self)
+        self.subject = subject
+        self.properties = properties
+        self.origValues = { prop.attribute: getattr(subject, prop.attribute) for prop in self.properties }
+        self.initUI()
+    def initUI(self):
+        self.grid = PropertySheetWidget(self.properties)
+        self.grid.setObjects([self.subject])
+        self.setLayout(QVBoxLayout())
+        self.layout().addWidget(self.grid)
+        buttons = QHBoxLayout()
+        pb = QPushButton("Cancel")
+        pb.clicked.connect(self.reject)
+        buttons.addWidget(pb)
+        pb = QPushButton("&OK")
+        pb.setDefault(True)
+        pb.clicked.connect(self.accept)
+        buttons.addWidget(pb)
+        self.layout().addLayout(buttons)
+    def rollback(self):
+        for k, v in self.origValues.items():
+            setattr(self.subject, k, v)
