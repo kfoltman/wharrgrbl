@@ -7,7 +7,7 @@ class ShapeDirection:
     OUTLINE = 3
     POCKET = 4
 
-defaultTool = CAMTool(diameter = 2.0, feed = 200.0, plunge = 100.0, depth = 0.3)
+defaultTool = CAMTool(diameter = 1.5 * 4, feed = 1200.0, plunge = 600.0, depth = 1.5)
 defaultMaterial = CAMMaterial(thickness = 6, clearance = 5)
 defaultZStart = 0
 defaultZEnd = None
@@ -45,17 +45,37 @@ class CAMOperationShape(object):
             else:
                 return [self.item]
         elif p.direction == ShapeDirection.POCKET:
+            safeAreas = offset(self.item.nodes, -p.tool.diameter / 2.0 + defaultEps)
             paths = []
             r = -p.tool.diameter / 2.0
+            debug = True
+            count = 0
             while True:
-                newparts = offset(self.item.nodes, r)
+                newparts = offset(self.item.nodes, r, not debug)
                 if not newparts:
                     break
                 paths.append(newparts)
                 r -= 0.75 * 0.5 * p.tool.diameter
+                if debug:
+                    break
             offsets = []
-            for p in reversed(paths):
-                offsets += p
+            lastpt = None
+            for path in reversed(paths):
+                if lastpt is not None and len(path) == 1:
+                    dl = DrawingLine(lastpt, path[0].start)
+                    # Avoid adding long slotting cuts
+                    if dl.length() < 3 * p.tool.diameter:
+                        for sa in safeAreas:
+                            for i in sa.nodes:
+                                if len(intersections(i, dl)):
+                                    dl = None
+                                    break
+                        if dl is not None:
+                            offsets[-1].nodes += [ dl, path[0]]
+                            lastpt = path[0].end
+                            continue
+                offsets += path
+                lastpt = path[-1].end
             return offsets
         elif p.direction == ShapeDirection.OUTSIDE:
             r = p.tool.diameter / 2.0

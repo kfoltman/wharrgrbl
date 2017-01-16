@@ -17,6 +17,8 @@ from helpers.gui import *
 from helpers.geom import *
 from helpers.flatitems import *
 
+debugToolPaths = False
+
 class MyRubberBand(QRubberBand):
     def paintEvent(self, e):
         qp = QPainter()
@@ -39,12 +41,15 @@ class DXFViewer(PreviewBase):
         self.opSelection = []
         self.curOperation = None
         self.updateCursor()
-    def getPen(self, item, is_virtual):
+    def getPen(self, item, is_virtual, is_debug):
         if is_virtual:
             color = QColor(160, 160, 160)
             if self.curOperation in self.opSelection:
                 color = QColor(255, 0, 0)
-            pen = QPen(color, self.curOperation.tool.diameter * self.getScale())
+            if not is_debug:
+                pen = QPen(color, self.curOperation.tool.diameter * self.getScale())
+            else:
+                pen = QPen(QColor(128, 0, 0), 1)
             pen.setCapStyle(Qt.RoundCap)
             pen.setJoinStyle(Qt.RoundJoin)
             return pen
@@ -64,10 +69,16 @@ class DXFViewer(PreviewBase):
             op = self.operations.item(i).operation
             self.curOperation = op
             for n in op.previewPaths:
-                n.addToPath(self, self.drawingPath, True)
+                n.addToPath(self, self.drawingPath, True, False)
+        if debugToolPaths:
+            for i in xrange(self.operations.rowCount()):
+                op = self.operations.item(i).operation
+                self.curOperation = op
+                for n in op.previewPaths:
+                    n.addToPath(self, self.drawingPath, True, True)
         self.curOperation = None
         for o in self.objects:
-            o.addToPath(self, self.drawingPath, False)
+            o.addToPath(self, self.drawingPath, False, False)
     def renderDrawing(self, qp):
         trect = QRectF(self.rect()).translated(self.translation)
         if self.drawingPath is not None:
@@ -214,6 +225,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.toolbar.addAction("Unselect").triggered.connect(self.onOperationUnselect)
         self.toolbar.addAction("Tool").triggered.connect(self.onOperationTool)
         self.toolbar.addAction("Material").triggered.connect(self.onOperationMaterial)
+        self.toolbar.addAction("Debug").triggered.connect(self.onOperationDebug)
         self.addToolBar(self.toolbar)
         self.viewer = DXFViewer(drawing)
         self.operationTree = OperationTreeWidget(self.viewer)
@@ -224,6 +236,12 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.setMinimumSize(1024, 600)
         self.operationTree.list.selectionModel().selectionChanged.connect(self.onOperationsSelected)
         self.onOperationsSelected()
+        
+        global debugToolPaths
+        debugToolPaths = True
+        for i in self.viewer.objects:
+            i.setMarked(True)
+        self.onOperationPocket()
     def onOperationsSelected(self):
         selected = self.operationTree.getSelected()
         self.objectProperties.setOperations(selected)
@@ -255,6 +273,10 @@ class DXFMainWindow(QMainWindow, MenuHelper):
     def updateOperationsAndRedraw(self):
         for o in self.viewer.operations:
             o.update()
+        self.viewer.updateSelection()
+    def onOperationDebug(self):
+        global debugToolPaths
+        debugToolPaths = not debugToolPaths
         self.viewer.updateSelection()
     def onOperationTool(self):
         tooledit = ToolEditDlg(defaultTool)
