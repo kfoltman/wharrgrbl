@@ -2,28 +2,31 @@ import math
 from helpers.geom import *
 from PyQt4.QtGui import *
 
+# Extend the bounds to account for numerical errors
+boundsMargin = 0.01
+
 class DrawingItem(object):
     def __init__(self):
         self.marked = False
         self.windings = None
     def setMarked(self, marked):
         self.marked = marked
-    def addArrow(self, viewer, center, path, angle, is_virtual):
+    def addArrow(self, viewer, center, path, angle, is_virtual, is_debug):
         r = 4
         c = QPointF(*center)
         sa = angle
         da = angle + 0.4 + math.pi
-        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da)), viewer.getPen(self, is_virtual))
+        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da)), viewer.getPen(self, is_virtual, is_debug))
         da2 = angle - 0.4 + math.pi
-        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da2)), viewer.getPen(self, is_virtual))
-        path.addLine(QLineF(circ(c, r, -da2), circ(c, r, -da)), viewer.getPen(self, is_virtual))
+        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da2)), viewer.getPen(self, is_virtual, is_debug))
+        path.addLine(QLineF(circ(c, r, -da2), circ(c, r, -da)), viewer.getPen(self, is_virtual, is_debug))
     def addDebug(self, path, center):
         if self.windings:
             txt = path.addSimpleText("%s" % self.windings)
             txt.setX(center[0])
             txt.setY(center[1])
     def calcBounds(self):
-        return expandRect(QRectF(qpxy(self.minX(), self.minY()), qpxy(self.maxX(), self.maxY())))
+        return expandRect(QRectF(qpxy(self.minX() - boundsMargin, self.minY() - boundsMargin), qpxy(self.maxX() + boundsMargin, self.maxY() + boundsMargin)))
     def typeName(self):
         return type(self).__name__.replace("Drawing", "")
 
@@ -34,14 +37,14 @@ class DrawingLine(DrawingItem):
         self.end = end
         self.startAngle = self.endAngle = math.atan2(self.end.y() - self.start.y(), self.end.x() - self.start.x())
         self.bounds = self.calcBounds()
-    def addToPath(self, viewer, path, is_virtual):
+    def addToPath(self, viewer, path, is_virtual, is_debug):
         start = viewer.project(self.start.x(), self.start.y(), 0)
         end = viewer.project(self.end.x(), self.end.y(), 0)
         center = viewer.project((self.start.x() + self.end.x()) / 2.0, (self.start.y() + self.end.y()) / 2.0, 0)
         self.addDebug(path, center)
-        path.addLine(start[0], start[1], end[0], end[1], viewer.getPen(self, is_virtual))
-        if not is_virtual:
-            self.addArrow(viewer, center, path, self.startAngle, is_virtual)
+        path.addLine(start[0], start[1], end[0], end[1], viewer.getPen(self, is_virtual, is_debug))
+        if not is_virtual or is_debug:
+            self.addArrow(viewer, center, path, self.startAngle, is_virtual, is_debug)
     def reversed(self):
         return DrawingLine(self.end, self.start)
     def distanceTo(self, p):
@@ -165,7 +168,7 @@ class DrawingArc(DrawingItem):
         span = nangle(endAngle - startAngle)
         sangle = startAngle - dir * math.pi / 2
         return DrawingArc(centre, radius, sangle, span)
-    def addToPath(self, viewer, path, is_virtual):
+    def addToPath(self, viewer, path, is_virtual, is_debug):
         xc, yc = viewer.project(self.centre.x(), self.centre.y(), 0)
         r = self.radius * viewer.getScale()
         sangle = r2d(self.sangle)
@@ -179,12 +182,12 @@ class DrawingArc(DrawingItem):
             pp.lineTo(*viewer.project(self.minX(), self.centre.y() + self.radius, 0))
             pp.moveTo(*viewer.project(self.maxX(), self.centre.y() - self.radius, 0))
             pp.lineTo(*viewer.project(self.maxX(), self.centre.y() + self.radius, 0))
-        path.addPath(pp, viewer.getPen(self, is_virtual))
-        if not is_virtual:
+        path.addPath(pp, viewer.getPen(self, is_virtual, is_debug))
+        if not is_virtual or is_debug:
             a = self.sangle
-            self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.startAngle, is_virtual)
+            self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.startAngle, is_virtual, is_debug)
             a = self.sangle + self.span
-            self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.endAngle, is_virtual)
+            self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.endAngle, is_virtual, is_debug)
     def distanceTo(self, p):
         p = QPointF(*p)
         theta = tang(self.centre, p)
@@ -221,9 +224,9 @@ class DrawingPolyline(DrawingItem):
         self.start = nodes[0].start
         self.end = nodes[-1].end
         self.bounds = self.calcBounds()
-    def addToPath(self, viewer, path, is_virtual):
+    def addToPath(self, viewer, path, is_virtual, is_debug):
         for i in self.nodes:
-            i.addToPath(viewer, path, is_virtual)
+            i.addToPath(viewer, path, is_virtual, is_debug)
     def distanceTo(self, p):
         if len(self.nodes) == 0:
             return None
@@ -296,6 +299,7 @@ removeCrossings = False
 checkBoundsInIntersections = False
 cacheWindingsValue = False
 useStraightLinesForWindings = False
+checkBoundsInWindingCheck = False
 
 def intersections(d1, d2):
     if checkBoundsInIntersections and not d1.bounds.intersects(d2.bounds):
@@ -305,7 +309,24 @@ def intersections(d1, d2):
         # a > 0 -> the d2 crosses d1 right to left
         a = nangle(d2.startAngle - d1.startAngle)
         if abs(a) < defaultEps:
+            if (d1.start == d2.start) and (d1.end == d2.end):
+                return []
+            if (d1.start == d2.end) and (d1.end == d2.start):
+                return []
+            pts = []
+            if distPointToLine(d1.start, d2.toLine()) < defaultEps:
+                pts.append(d1.start)
+            if distPointToLine(d1.end, d2.toLine()) < defaultEps:
+                pts.append(d1.end)
+            if distPointToLine(d2.start, d1.toLine()) < defaultEps:
+                pts.append(d2.start)
+            if distPointToLine(d2.end, d1.toLine()) < defaultEps:
+                pts.append(d2.end)
+            pts = list(set(pts))
             a = 0
+            if pts:
+                print pts, a
+            return [(p, a) for p in pts]
         if d1.toLine().intersect(d2.toLine(), p) == QLineF.BoundedIntersection:
             return [(p, a)]
         return []
@@ -313,6 +334,8 @@ def intersections(d1, d2):
         dist = pdist(d1.centre, d2.centre)
         if dist > d1.radius + d2.radius or dist == 0:
             return []
+        if dist < defaultEps:
+            print "Warning: concentric circles %f %f" % (d1.radius, d2.radius)
         along = (d1.radius ** 2 - d2.radius ** 2 + dist ** 2) / (2.0 * dist)
         across2 = d1.radius ** 2 - along ** 2
         if across2 < 0:
@@ -360,7 +383,7 @@ def intersections(d1, d2):
         return pts
     return []
 
-def removeLoops(nodes):
+def removeLoops(nodes, doRemoveLoops):
     orient = findOrientation(nodes)
     events = []
     splitpoints = {}
@@ -440,6 +463,8 @@ def removeLoops(nodes):
             nodes2.append(n)
     if not nodes2:
         return []
+    if not doRemoveLoops:
+        return nodes2
     lastAngle = nodes2[-1].startAngle
     sumAngle = 0
     points = {}
@@ -473,7 +498,7 @@ def removeLoops(nodes):
             for m in nodes2:
                 if n is m:
                     continue
-                if not m.bounds.intersects(l.bounds):
+                if checkBoundsInWindingCheck and not m.bounds.intersects(l.bounds):
                     inochecks += 1
                     continue
                 ichecks += 1
@@ -488,7 +513,7 @@ def removeLoops(nodes):
         print ichecks, inochecks
     return nodes3
 
-def offset(nodes, r):
+def offset(nodes, r, doRemoveLoops = True):
     reverse = findOrientation(nodes) > 0
     if reverse:
         nodes = reversed_nodes(nodes)
@@ -555,7 +580,7 @@ def offset(nodes, r):
         nodes2.append(this)
     if traceOffsetCode:
         print "Remove loops"
-    nodes2 = removeLoops(nodes2)
+    nodes2 = removeLoops(nodes2, doRemoveLoops)
     if len(nodes2) < 2:
         return []
     if reverse:
