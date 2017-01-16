@@ -8,8 +8,9 @@ class ShapeDirection:
     POCKET = 4
 
 defaultTool = CAMTool(diameter = 2.0, feed = 200.0, plunge = 100.0, depth = 0.3)
+defaultMaterial = CAMMaterial(thickness = 6, clearance = 5)
 defaultZStart = 0
-defaultZEnd = -2.5
+defaultZEnd = None
 defaultTabHeight = 1
 defaultMinTabs = 2
 defaultMaxTabs = 4
@@ -68,7 +69,7 @@ class CAMOperation(object):
     def __init__(self, direction, shapes, tool):
         self.tool = tool
         self.zstart = float(defaultZStart)
-        self.zend = float(defaultZEnd)
+        self.zend = None
         self.tab_height = None
         self.tab_width = None
         self.tab_spacing = 200
@@ -150,18 +151,19 @@ class CAMOperationsModel(QStandardItemModel):
                 lastTool = o.tool
             lastz = 5
             last = None
+            zend = o.zend or -defaultMaterial.thickness
             for s in o.shapes:
                 for p in s.fullPaths:
                     z = o.zstart
                     tabs = s.generateTabs(p, o.tool)
-                    while z > o.zend:
+                    while z > zend:
                         z -= o.tool.depth
-                        if z < o.zend:
-                            z = o.zend
+                        if z < zend:
+                            z = zend
                         if o.tab_height is None:
                             ztab = o.zstart
                         else:
-                            ztab = min(o.zend + o.tab_height, o.zstart)
+                            ztab = min(zend + o.tab_height, o.zstart)
                         if z < ztab:
                             for start, end, is_tab in tabs:
                                 opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, ztab), last, lastz)

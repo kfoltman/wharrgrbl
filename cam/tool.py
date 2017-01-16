@@ -21,6 +21,11 @@ def gencode(**kwargs):
             s += k.upper() + fmtfloat(v)
     return s
 
+class CAMMaterial(object):
+    def __init__(self, thickness, clearance):
+        self.thickness = thickness
+        self.clearance = clearance
+
 class CAMTool(object):
     def __init__(self, diameter, feed, plunge, depth):
         self.diameter = float(diameter)
