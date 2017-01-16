@@ -5,6 +5,7 @@ import time
 from cam.tool import *
 from cam.operation import *
 from cam.tooledit import *
+from cam.matedit import *
 
 import dxfgrabber
 
@@ -174,7 +175,7 @@ class OperationTreeWidget(QDockWidget):
 
 class ObjectPropertiesWidget(QDockWidget):
     properties = [
-        FloatEditableProperty("End depth", "zend", "%0.3f"),
+        FloatEditableProperty("End depth", "zend", "%0.3f", allow_none = True, none_value = "Full depth"),
         FloatEditableProperty("Start depth", "zstart", "%0.3f"),
         FloatEditableProperty("Tab height", "tab_height", "%0.3f", allow_none = True, none_value = "Full height"),
         FloatEditableProperty("Tab width", "tab_width", "%0.3f", allow_none = True, none_value = "1/2 tool diameter"),
@@ -212,6 +213,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.toolbar.addAction("Generate").triggered.connect(self.onOperationGenerate)
         self.toolbar.addAction("Unselect").triggered.connect(self.onOperationUnselect)
         self.toolbar.addAction("Tool").triggered.connect(self.onOperationTool)
+        self.toolbar.addAction("Material").triggered.connect(self.onOperationMaterial)
         self.addToolBar(self.toolbar)
         self.viewer = DXFViewer(drawing)
         self.operationTree = OperationTreeWidget(self.viewer)
@@ -259,6 +261,12 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         tooledit.grid.propertyChanged.connect(self.updateOperationsAndRedraw)
         if tooledit.exec_() < 1:
             tooledit.rollback()
+        self.updateOperationsAndRedraw()
+    def onOperationMaterial(self):
+        matedit = MaterialEditDlg(defaultMaterial)
+        matedit.grid.propertyChanged.connect(self.updateOperationsAndRedraw)
+        if matedit.exec_() < 1:
+            matedit.rollback()
         self.updateOperationsAndRedraw()
     def onOperationGenerate(self):
         ops = self.viewer.operations.toGcode()
