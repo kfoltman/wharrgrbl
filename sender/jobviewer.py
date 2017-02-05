@@ -101,6 +101,9 @@ class PreviewBase(QtGui.QWidget):
     def project(self, x, y, z):
         scale = self.getScale()
         return (x - self.x0) * scale, -(y - self.y0) * scale + self.rect().height()
+    def unproject(self, x, y):
+        scale = self.getScale()
+        return self.x0 + (x / scale), self.y0 + ((self.rect().height() - y) / scale)
     def getScale(self):
         return 10 * (2 ** (self.scaleLevel / 2.0))
     def findScaleLevel(self, scale):
