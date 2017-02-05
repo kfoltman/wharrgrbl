@@ -52,16 +52,13 @@ class CAMOperationShape(object):
             safeAreas = offset(self.item.nodes, -p.tool.diameter / 2.0 + defaultEps)
             paths = []
             r = -p.tool.diameter / 2.0
-            debug = True
             count = 0
             while True:
                 newparts = offset(self.item.nodes, r)
                 if not newparts:
                     break
                 paths.append(newparts)
-                r -= 0.75 * 0.5 * p.tool.diameter
-                if debug:
-                    break
+                r -= p.tool.stepover * 0.005 * p.tool.diameter
             offsets = []
             lastpt = None
             for path in reversed(paths):

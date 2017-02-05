@@ -34,6 +34,7 @@ class CAMTool(object):
         self.depth = float(depth)
         self.length = None
         self.clearance = 5
+        self.stepover = 77
     def begin(self):
         return []
     def followContour(self, nodes, z, last, lastz):
