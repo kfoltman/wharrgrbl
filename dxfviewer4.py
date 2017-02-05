@@ -17,6 +17,8 @@ from helpers.gui import *
 from helpers.geom import *
 from helpers.flatitems import *
 
+setOffsettingMode(4)
+
 class DXFViewer(PreviewBase):
     selected = pyqtSignal([])
     mouseMoved = pyqtSignal([])
@@ -35,9 +37,13 @@ class DXFViewer(PreviewBase):
             if self.curOperation in self.opSelection:
                 color = QColor(255, 0, 0)
             if not is_debug:
+                if not item.isBoundary():
+                    return QPen(color, 0)
                 pen = QPen(color, self.curOperation.tool.diameter * self.getScale())
             else:
-                pen = QPen(QColor(0, 255, 255), 1)
+                pen = QPen(QColor(0, 255, 255), 2)
+                if not item.isBoundary():
+                    pen = QPen(QColor(255, 0, 0), 2)
             pen.setCapStyle(Qt.RoundCap)
             pen.setJoinStyle(Qt.RoundJoin)
             return pen
@@ -105,6 +111,11 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.toolbar = QToolBar("Operations")
         self.toolbar.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.addToolBar(self.toolbar)
+        self.toolWidth = QLineEdit()
+        self.toolbar.addWidget(QLabel("Tool width:"))
+        self.toolbar.addWidget(self.toolWidth)
+        self.toolWidth.setText("%0.2f" % defaultTool.diameter)
+        self.toolWidth.textChanged.connect(self.onToolWidthChanged)
         self.statusbar = QStatusBar()
         self.setStatusBar(self.statusbar)
         self.viewer = DXFViewer(drawing)
@@ -113,10 +124,19 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         
         for i in self.viewer.objects:
             i.setMarked(True)
-        self.createOperations(ShapeDirection.POCKET)
+        shapes = { 'i' : ShapeDirection.INSIDE, 'p' : ShapeDirection.POCKET,
+            'o' : ShapeDirection.OUTSIDE, 'e' : ShapeDirection.OUTLINE,
+            's' : ShapeDirection.SIMPLIFY }
+        self.createOperations(shapes[sys.argv[3]])
         self.viewer.mouseMoved.connect(self.updateStatus)
     def updateStatus(self):
         self.statusBar().showMessage("(%0.3f, %0.3f)" % (self.viewer.lastMousePos))
+    def onToolWidthChanged(self, t):
+        try:
+            defaultTool.diameter = float(t)
+        except:
+            return
+        self.updateOperationsAndRedraw()
     def createOperations(self, dir):
         shapes = []
         for i in self.viewer.objects:
@@ -126,6 +146,9 @@ class DXFMainWindow(QMainWindow, MenuHelper):
                     i.setMarked(False)
         if len(shapes):
             op = CAMOperation(dir, shapes, defaultTool)
+            op.min_tabs = 0
+            op.max_tabs = 0
+            op.update()
             index = self.viewer.operations.addOperation(op)
         self.viewer.updateSelection()
     def updateOperationsAndRedraw(self):

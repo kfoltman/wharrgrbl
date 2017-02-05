@@ -6,12 +6,9 @@ class ShapeDirection:
     INSIDE = 2
     OUTLINE = 3
     POCKET = 4
+    SIMPLIFY = 5
 
-# defaultTool = CAMTool(diameter = 2.0, feed = 200.0, plunge = 100.0, depth = 0.3)
-#defaultTool = CAMTool(diameter = 8, feed = 1200.0, plunge = 600.0, depth = 1.5)
-defaultTool = CAMTool(diameter = 8.0, feed = 1200.0, plunge = 600.0, depth = 1.5)
-#defaultTool = CAMTool(diameter = 24, feed = 1200.0, plunge = 600.0, depth = 1.5)
-#defaultTool = CAMTool(diameter = 3.7, feed = 1200.0, plunge = 600.0, depth = 1.5)
+defaultTool = CAMTool(diameter = 2.0, feed = 1200.0, plunge = 400.0, depth = 0.3)
 defaultZStart = 0
 defaultZEnd = None
 defaultTabHeight = 1
@@ -27,7 +24,7 @@ class CAMOperationShape(object):
         if self.parent.direction in (ShapeDirection.OUTLINE, ShapeDirection.POCKET) or self.parent.tab_height == 0:
             self.ntabs = 0
         else:
-            self.ntabs = max(self.parent.min_tabs, min(self.parent.max_tabs, int(1 + self.item.length() // self.parent.tab_spacing)))
+            self.ntabs = min(self.parent.max_tabs, max(self.parent.min_tabs, int(1 + self.item.length() // self.parent.tab_spacing)))
         self.fullPaths = self.generateFullPaths()
     def generateTabs(self, path, tool):
         l = path.length()
@@ -45,7 +42,13 @@ class CAMOperationShape(object):
         p = self.parent
         if p.direction == ShapeDirection.OUTLINE:
             if type(self.item) is DrawingPolyline:
-                return self.item.nodes
+                return removeLoops2(plugSmallGaps(eliminateCrossings(plugSmallGaps(self.item.nodes))))
+                #return removeLoops2(eliminateCrossings(self.item.nodes), windingRule = False)
+            else:
+                return [self.item]
+        elif p.direction == ShapeDirection.SIMPLIFY:
+            if type(self.item) is DrawingPolyline:
+                return removeLoops2(plugSmallGaps(eliminateCrossings(plugSmallGaps(self.item.nodes))))
             else:
                 return [self.item]
         elif p.direction == ShapeDirection.POCKET:
@@ -102,7 +105,7 @@ class CAMOperation(object):
     def update(self):
         for i in self.shapes:
             i.update()
-        self.previewPaths = self.generatePreviewPaths()        
+        self.previewPaths = self.generatePreviewPaths()
     def description(self):
         s = ""
         if self.direction == ShapeDirection.OUTLINE:
@@ -122,10 +125,10 @@ class CAMOperation(object):
         for s in self.shapes:
             for p in s.fullPaths:
                 for start, end, is_tab in s.generateTabs(p, self.tool):
-                    if not is_tab:
-                        c = p.cut(start, end)
-                        if c is not None:
-                            paths.append(c)
+                    c = p.cut(start, end)
+                    c.setIsTab(is_tab)
+                    if c is not None:
+                        paths.append(c)
         return paths
 
 class CAMOperationItem(QStandardItem):

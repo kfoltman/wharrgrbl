@@ -46,8 +46,14 @@ class DXFViewer(PreviewBase):
     def getPen(self, item, is_virtual, is_debug):
         if is_virtual:
             color = QColor(160, 160, 160)
+            if getattr(item, 'is_tab', False) != self.is_tab:
+                return None
+            if self.is_tab:
+                color = QColor(180, 180, 180)
             if self.curOperation in self.opSelection:
                 color = QColor(255, 0, 0)
+                if self.is_tab:
+                    color = QColor(255, 128, 128)
             if not is_debug:
                 pen = QPen(color, self.curOperation.tool.diameter * self.getScale())
             else:
@@ -70,6 +76,10 @@ class DXFViewer(PreviewBase):
         for i in xrange(self.operations.rowCount()):
             op = self.operations.item(i).operation
             self.curOperation = op
+            self.is_tab = True
+            for n in op.previewPaths:
+                n.addToPath(self, self.drawingPath, True, False)
+            self.is_tab = False
             for n in op.previewPaths:
                 n.addToPath(self, self.drawingPath, True, False)
         if debugToolPaths:

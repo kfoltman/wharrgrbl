@@ -11,26 +11,51 @@ class DrawingItem(object):
     def __init__(self):
         self.marked = False
         self.windings = None
+        self.weight = None
     def setMarked(self, marked):
         self.marked = marked
+    def setIsTab(self, is_tab):
+        self.is_tab = is_tab
     def addArrow(self, viewer, center, path, angle, is_virtual, is_debug):
         r = 4
+        if is_debug:
+            r = 8
         c = QPointF(*center)
         sa = angle
         da = angle + 0.4 + math.pi
-        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da)), viewer.getPen(self, is_virtual, is_debug))
+        pen = viewer.getPen(self, is_virtual, is_debug)
+        if pen is None:
+            return
+        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da)), pen)
         da2 = angle - 0.4 + math.pi
-        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da2)), viewer.getPen(self, is_virtual, is_debug))
-        path.addLine(QLineF(circ(c, r, -da2), circ(c, r, -da)), viewer.getPen(self, is_virtual, is_debug))
-    def addDebug(self, path, center):
-        if self.windings:
-            txt = path.addSimpleText("%s" % self.windings)
-            txt.setX(center[0])
-            txt.setY(center[1])
+        path.addLine(QLineF(circ(c, r, -sa), circ(c, r, -da2)), pen)
+        path.addLine(QLineF(circ(c, r, -da2), circ(c, r, -da)), pen)
+    def addDebug(self, viewer, path, cx, cy, angle):
+        if self.weight is not None:
+            def txt(s, pos):
+                txt = path.addSimpleText("%s" % s)
+                txt.setX(pos[0] - txt.boundingRect().width() / 2)
+                txt.setY(pos[1] - txt.boundingRect().height() / 2)
+            
+            r = 20.0 / viewer.getScale()
+            
+            cl2 = QLineF.fromPolar(r, angle + 90).translated(cx, cy)
+            center2 = viewer.project(cl2.x2(), cl2.y2(), 0)
+            
+            cl3 = QLineF.fromPolar(r, angle - 90).translated(cx, cy)
+            center1 = viewer.project(cl3.x2(), cl3.y2(), 0)
+            w1, w2 = self.weight.split("/")
+            txt(w1, center1)
+            txt(w2, center2)
     def calcBounds(self):
         return expandRect(QRectF(qpxy(self.minX() - boundsMargin, self.minY() - boundsMargin), qpxy(self.maxX() + boundsMargin, self.maxY() + boundsMargin)))
     def typeName(self):
         return type(self).__name__.replace("Drawing", "")
+    def isBoundary(self):
+        if self.weight is None:
+            return True
+        w = map(int, self.weight.split("/"))
+        return (w[0] <= 0 and w[1] > 0) or (w[1] <= 0 and w[0] > 0)
 
 class DrawingLine(DrawingItem):
     def __init__(self, start, end):
@@ -40,11 +65,17 @@ class DrawingLine(DrawingItem):
         self.startAngle = self.endAngle = math.atan2(self.end.y() - self.start.y(), self.end.x() - self.start.x())
         self.bounds = self.calcBounds()
     def addToPath(self, viewer, path, is_virtual, is_debug):
+        pen = viewer.getPen(self, is_virtual, is_debug)
+        if pen is None:
+            return
         start = viewer.project(self.start.x(), self.start.y(), 0)
         end = viewer.project(self.end.x(), self.end.y(), 0)
-        center = viewer.project((self.start.x() + self.end.x()) / 2.0, (self.start.y() + self.end.y()) / 2.0, 0)
-        self.addDebug(path, center)
-        path.addLine(start[0], start[1], end[0], end[1], viewer.getPen(self, is_virtual, is_debug))
+        cl = self.toLine()
+        cl.setLength(cl.length() / 2.0)
+        center = viewer.project(cl.x2(), cl.y2(), 0)
+        if is_debug:
+            self.addDebug(viewer, path, cl.x2(), cl.y2(), cl.angle())
+        path.addLine(start[0], start[1], end[0], end[1], pen)
         if not is_virtual or is_debug:
             self.addArrow(viewer, center, path, self.startAngle, is_virtual, is_debug)
     def reversed(self):
@@ -56,12 +87,16 @@ class DrawingLine(DrawingItem):
     def length(self):
         return QLineF(self.start, self.end).length()
     def clone(self):
-        return DrawingLine(self.start, self.end)
+        dl = DrawingLine(self.start, self.end)
+        dl.weight = self.weight
+        return dl
     def cut(self, start, end):
         cur = self.length()
         if cur <= 0:
             return self.clone()
-        return DrawingLine(interp(self.start, self.end, max(start, 0) * 1.0 / cur), interp(self.start, self.end, min(end, cur) * 1.0 / cur))
+        dl = DrawingLine(interp(self.start, self.end, max(start, 0) * 1.0 / cur), interp(self.start, self.end, min(end, cur) * 1.0 / cur))
+        dl.weight = self.weight
+        return dl
     def minX(self):
         return min(self.start.x(), self.end.x())
     def minY(self):
@@ -180,13 +215,17 @@ class DrawingArc(DrawingItem):
         pp = QPainterPath()
         pp.arcMoveTo(QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle)
         pp.arcTo(QRectF(xc - r, yc - r, 2.0 * r, 2.0 * r), sangle, span)
-        self.addDebug(path, circ3(xc, yc, r, -(self.sangle + self.span / 2)))
+        cx, cy = circ3(self.centre.x(), self.centre.y(), self.radius, (self.sangle + self.span / 2))
+        if is_debug:
+            self.addDebug(viewer, path, cx, cy, DrawingLine(self.start, self.end).toLine().angle())
         if False:
             pp.moveTo(*viewer.project(self.minX(), self.centre.y() - self.radius, 0))
             pp.lineTo(*viewer.project(self.minX(), self.centre.y() + self.radius, 0))
             pp.moveTo(*viewer.project(self.maxX(), self.centre.y() - self.radius, 0))
             pp.lineTo(*viewer.project(self.maxX(), self.centre.y() + self.radius, 0))
-        path.addPath(pp, viewer.getPen(self, is_virtual, is_debug))
+        pen = viewer.getPen(self, is_virtual, is_debug)
+        if pen is not None:
+            path.addPath(pp, pen)
         if not is_virtual or is_debug:
             a = self.sangle + self.span / 10
             self.addArrow(viewer, circ3(xc, yc, r, -a), path, self.startAngle, is_virtual, is_debug)
@@ -209,7 +248,9 @@ class DrawingArc(DrawingItem):
             dist = min(pdist(p, self.start), pdist(p, self.end))
             return dist
     def clone(self):
-        return DrawingArc(self.centre, self.radius, self.sangle, self.span)
+        da = DrawingArc(self.centre, self.radius, self.sangle, self.span)
+        da.weight = self.weight
+        return da
     def cut(self, start, end):
         cur = self.length()
         if cur <= 0:
@@ -217,7 +258,9 @@ class DrawingArc(DrawingItem):
         else:
             start = max(start, 0)
             end = min(end, cur)
-            return DrawingArc(self.centre, self.radius, self.sangle + self.span * start / cur, self.span * (end - start) / cur)
+            da = DrawingArc(self.centre, self.radius, self.sangle + self.span * start / cur, self.span * (end - start) / cur)
+            da.weight = self.weight
+            return da
 
 class DrawingPolyline(DrawingItem):
     def __init__(self, nodes):
@@ -239,6 +282,10 @@ class DrawingPolyline(DrawingItem):
         self.marked = marked
         for i in self.nodes:
             i.setMarked(marked)
+    def setIsTab(self, is_tab):
+        self.is_tab = is_tab
+        for i in self.nodes:
+            i.setIsTab(is_tab)
     def length(self):
         return sum([i.length() for i in self.nodes])
     def cut(self, start, end):
@@ -742,7 +789,7 @@ def removeLoops2old(nodes):
     shapes = [shapes[4]]
     return [DrawingPolyline(x) for x in shapes]
 
-def removeLoops2(nodes):
+def removeLoops2(nodes, windingRule = True):
     def treat(x, y):
         m = 1048576.0
         return (int(x * m + 0.5) / m, int(y * m + 0.5) / m)
@@ -852,11 +899,22 @@ def removeLoops2(nodes):
     #    print edge.start, edge.end, w
     #sys.exit(1)
     #return [DrawingPolyline(x) for x in shapes]
-    nodes = [n for n in nodes if n in windings and windings[n] <= 0 and windings[n] + weights[n] >= 1]
+    if windingRule:
+        nodes = [n for n in nodes if n in windings and windings[n] <= 0 and windings[n] + weights[n] >= 1]
+    else:
+        nodes = [n for n in nodes if n in windings and weights[n] != 0]
+    for i in nodes:
+        i.weight = "%s/%s" % (windings[i], windings[i] + weights[i])
     if len(nodes):
         return [DrawingPolyline(nodes)]
     else:
         return []
+
+offsettingMode = 3
+
+def setOffsettingMode(mode):
+    global offsettingMode
+    offsettingMode = mode
 
 def offset(nodes, r):
     nodes = plugSmallGaps(nodes)
@@ -939,7 +997,7 @@ def offset(nodes, r):
     # method 2: bug.dxf, tool=7.3..8 mm - breaks due to numerical instability in freeglut, workaround: quantize coordinates
     # method 3: wrench1.dxf, tool=4 mm
 
-    mode = 3
+    mode = offsettingMode
 
     nodes2 = replaceShortArcsWithLines(nodes2)
     #nodes2 = removeReversals(nodes2)
@@ -965,4 +1023,7 @@ def offset(nodes, r):
             return [DrawingPolyline(nodes2)]
     elif mode == 3:
         res = removeLoops2(removeReversals(nodes2))
+        return res
+    elif mode == 4:
+        res = removeLoops2(removeReversals(nodes2), windingRule = False)
         return res
