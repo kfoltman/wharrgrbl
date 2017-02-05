@@ -243,11 +243,6 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.operationTree.list.selectionModel().selectionChanged.connect(self.onOperationsSelected)
         self.onOperationsSelected()
         
-        global debugToolPaths
-        debugToolPaths = True
-        for i in self.viewer.objects:
-            i.setMarked(True)
-        self.onOperationPocket()
         self.viewer.mouseMoved.connect(self.updateStatus)
     def updateStatus(self):
         self.statusBar().showMessage("(%0.3f, %0.3f)" % (self.viewer.lastMousePos))
