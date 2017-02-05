@@ -21,6 +21,7 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         self.inputs = ""
         self.pins = ""
         self.current_status = ('Initialized', {}, '', None)
+        self.cancel_in_progress = False
         sender.GrblStateMachine.__init__(self, Global.settings.device, Global.settings.speed)
     def handle_line(self, line):
         if not (line.startswith('<') and line.endswith('>')):
@@ -97,6 +98,24 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
             command = self.prepare(cmd.command)
             if command == '':
                 cmd.set_status("Empty - Ignored")
+                return
+            if command.startswith("\x85"):
+                # Special handling for jogging cancel in a command
+                if self.current_status[0] == 'Jog':
+                    if not self.cancel_in_progress:
+                        self.cancel_jog()
+                        self.cancel_in_progress = True
+                    self.outqueue = []
+                    cmd.rollback()
+                    return
+                self.cancel_in_progress = False
+                command = command[1:]
+                if command == '':
+                    cmd.set_status("Sent")
+                    return
+            if command.startswith("$J=") and self.current_status[0] not in ('Idle', 'Jog'):
+                time.sleep(0.01)
+                cmd.rollback()
                 return
             error = sender.GrblStateMachine.send_line(self, command, cmd)
             if error is not None:
