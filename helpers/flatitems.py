@@ -448,7 +448,9 @@ def eliminateCrossings(nodes):
         res = cmp(ev1[0], ev2[0])
         if res:
             return res
-        return cmp(ev1[3], ev2[3])
+        res = cmp(ev1[3], ev2[3])
+        return res
+        
     events = []
     splitpoints = {}
     if traceOffsetCode:
@@ -721,7 +723,12 @@ class VertexEvent(object):
         sp = qpxy(self.x, self.y)
         #self.events = sorted(self.events, lambda a, b: cmp(a[0], b[0]) or cmp(tang(sp, qp(a[3])), tang(sp, qp(b[3]))))
         #self.events = sorted(self.events, lambda a, b: -cmp(tang(sp, qp(a[3])), tang(sp, qp(b[3]))))
-        self.events = sorted(self.events, lambda a, b: -cmp(angle(a[1], a[2]), angle(b[1], b[2])))
+        def cmpEvent(a, b):
+            if cmp(angle(a[1], a[2]), angle(b[1], b[2])) == 0:
+                print "undecided: %s - %s - %s" % (self, a[3], b[3])
+                return -cmp(angle(a[1], not a[2]), angle(b[1], not b[2]))
+            return -cmp(angle(a[1], a[2]), angle(b[1], b[2]))
+        self.events = sorted(self.events, cmpEvent)
     def __repr__(self):
         s = "(%0.3f, %0.3f)" % (self.x, self.y)
         return s
@@ -789,6 +796,12 @@ def removeLoops2old(nodes):
     shapes = [shapes[4]]
     return [DrawingPolyline(x) for x in shapes]
 
+def dumpVertexes(vertexes, weights, snos):
+    for k, v in vertexes.items():
+        print v
+        for e in v.events:
+            print e[0], "EDGE%d" % snos[e[1]], vertexes[e[3]], e[2], weights[e[1]]
+
 def removeLoops2(nodes, windingRule = True):
     def treat(x, y):
         m = 1048576.0
@@ -826,6 +839,12 @@ def removeLoops2(nodes, windingRule = True):
             vertexes[e].addEdge(n, s, True)
             del weights[(s, e)]
             del weights[(e, s)]
+    sno = 0
+    snos = {}
+    for edge in nodes:
+        snos[edge] = sno
+        sno += 1
+
     for v in vertexes.values():
         v.sort()
         vp = treat(v.x, v.y)
@@ -834,6 +853,7 @@ def removeLoops2(nodes, windingRule = True):
             w = weights[edge] * (1 if incoming else -1)
             wc += w
         assert wc == 0
+    #return nodes
     windings = {}
     shapes = []
     order = sorted(vertexes.keys())
@@ -841,11 +861,16 @@ def removeLoops2(nodes, windingRule = True):
     wc = 0
     vertexq = set([])
     completed = set([])
-    #print "First %s" % first
+    if traceOffsetCode:
+        dumpVertexes(vertexes, weights, snos)
+        print
+        print "First %s" % first
     for etype, edge, incoming, other in first.events:
         if incoming:
             wc -= weights[edge]
         #print "%s %s wc=%d" % ("To" if not incoming else "From", other, wc)
+        if traceOffsetCode:
+            print "  Set EDGE%d to %d" % (snos[edge], wc)
         windings[edge] = wc
         if not incoming:
             wc += weights[edge]
@@ -859,7 +884,8 @@ def removeLoops2(nodes, windingRule = True):
         vertexq.remove(vpos)
         if v in completed:
             continue
-        #print "At %s" % v
+        if traceOffsetCode:
+            print "At %s" % v
         i = 0
         for i, ev in enumerate(v.events):        
             etype, edge, incoming, other = ev
@@ -878,9 +904,12 @@ def removeLoops2(nodes, windingRule = True):
                 wc -= weights[edge]
             #print "Setting to %d" % wc
             if edge not in windings:
+                if traceOffsetCode:
+                    print "  Set EDGE%d %s to %d" % (snos[edge], vertexes[other], wc)
                 windings[edge] = wc
             else:
-                #windings[edge] = min(wc, windings[edge])
+                if windings[edge] != wc:
+                    print "At %s-%s discrepancy %d vs %d" % (v, other, windings[edge], wc)
                 assert windings[edge] == wc, "%d vs %d" % (windings[edge], wc)
             if not incoming:
                 wc += weights[edge]

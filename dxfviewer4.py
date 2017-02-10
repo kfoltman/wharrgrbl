@@ -17,7 +17,8 @@ from helpers.gui import *
 from helpers.geom import *
 from helpers.flatitems import *
 
-setOffsettingMode(4)
+if sys.argv[3] != 'p':
+    setOffsettingMode(4)
 
 class DXFViewer(PreviewBase):
     selected = pyqtSignal([])
@@ -100,6 +101,10 @@ class DXFViewer(PreviewBase):
             if box.contains(o.bounds):
                 o.setMarked(True)
         self.updateSelection()
+    def mouseMoveEvent(self, e):
+        PreviewBase.mouseMoveEvent(self, e)
+        self.lastMousePos = self.physToLog(e.posF())
+        self.mouseMoved.emit()
     
 class DXFApplication(QApplication):
     pass
