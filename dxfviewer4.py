@@ -19,6 +19,8 @@ from helpers.flatitems import *
 
 if sys.argv[3] != 'p':
     setOffsettingMode(4)
+else:
+    defaultTool.stepover = float(sys.argv[4])
 
 class DXFViewer(PreviewBase):
     selected = pyqtSignal([])
