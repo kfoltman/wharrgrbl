@@ -322,6 +322,9 @@ class DrawingCircle(DrawingPolyline):
         self.centre = centre
         self.radius = radius
 
+def removeEmptyLines(nodes):
+    return [n for n in nodes if n.start != n.end]
+
 def findOrientation(nodes):
     angle = 0
     for i in range(len(nodes)):
@@ -357,7 +360,6 @@ def reversed_nodes(nodes):
     return [i.reversed() for i in reversed(nodes)]
 
 traceOffsetCode = False
-removeCrossings = False
 checkBoundsInIntersections = False
 cacheWindingsValue = False
 useStraightLinesForWindings = False
@@ -396,6 +398,10 @@ def intersections(d1, d2):
             return []
         if dist < defaultEps:
             print "Warning: concentric circles %f %f" % (d1.radius, d2.radius)
+            print "C1: %f %f" % (d1.sangle, d1.span)
+            print "C2: %f %f" % (d2.sangle, d2.span)
+            #return [(d1.start, 0), (d1.end, 0), (d2.start, 0), (d2.end, 0)]
+            return []
         along = (d1.radius ** 2 - d2.radius ** 2 + dist ** 2) / (2.0 * dist)
         across2 = d1.radius ** 2 - along ** 2
         if across2 < 0:
@@ -516,9 +522,10 @@ def eliminateCrossings(nodes):
                     arc = DrawingArc(n.centre, n.radius, n.sangle + last, this - last)
                     arc.start = lastp
                     arc.end = i
-                    nodes2.append(arc)
-                    splitpoints2.add(arc.start)
-                    splitpoints2.add(arc.end)
+                    if arc.start != arc.end:
+                        nodes2.append(arc)
+                        splitpoints2.add(arc.start)
+                        splitpoints2.add(arc.end)
                     lastp = i
                     last = this
                 if last != n.span:
@@ -946,7 +953,9 @@ def setOffsettingMode(mode):
     offsettingMode = mode
 
 def offset(nodes, r):
+    nodes = removeEmptyLines(nodes)
     nodes = plugSmallGaps(nodes)
+    #nodes = arcsToLines(nodes)
     reverse = findOrientation(nodes) > 0
     orig = list(nodes)
     if reverse:
@@ -977,25 +986,31 @@ def offset(nodes, r):
             if start != end:
                 newl = DrawingLine(start, end)
                 newl.orig_start = this.start
-                if removeCrossings and len(nodes2) > 0 and type(nodes2[-1]) is DrawingLine:
-                    isl = intersections(nodes2[-1], newl)
-                    if len(isl) == 1:
-                        nodes2[-1].end = isl[0][0]
-                        newl.start = isl[0][0]
                 nodes2.append(newl)
         elif type(this) is DrawingArc:
             if (this.span < 0) != (s > 0):
                 newr = this.radius - r
             else:
                 newr = this.radius + r
-            if newr > 0:
+            if newr <= 0:
+                arc = DrawingArc(this.centre + start - this.start, this.radius, this.sangle, this.span)
+                arc.orig_start = this.end
+                a1 = arc.end
+                if start != arc.start:
+                    nodes2.append(DrawingLine(start, arc.start))
+                nodes2.append(arc)
+                arc = DrawingArc(this.centre + end - this.end, this.radius, this.sangle, this.span)
+                arc.orig_start = this.start
+                a2 = arc.start
+                if newr == 0 and a1 != a2:
+                    nodes2.append(DrawingLine(a1, a2))
+                nodes2.append(arc)
+                if end != arc.end:
+                    nodes2.append(DrawingLine(arc.end, end))
+            else:
                 arc = DrawingArc(this.centre, newr, this.sangle, this.span)
                 arc.orig_start = this.start
                 nodes2.append(arc)
-            else:
-                newl = DrawingLine(start, end)
-                newl.orig_start = this.start
-                nodes2.append(newl)
     if traceOffsetCode:
         print "Add missing segments"
     nodes = list(nodes2)
