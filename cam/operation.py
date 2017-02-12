@@ -8,6 +8,14 @@ class ShapeDirection:
     POCKET = 4
     SIMPLIFY = 5
 
+defaultPriorityPerDirection = {
+    ShapeDirection.OUTLINE : 10,
+    ShapeDirection.POCKET : 15,
+    ShapeDirection.INSIDE : 20,
+    ShapeDirection.SIMPLIFY : 0,
+    ShapeDirection.OUTSIDE : 90,
+}
+
 defaultTool = CAMTool(diameter = 2.0, feed = 1200.0, plunge = 400.0, depth = 0.3)
 defaultZStart = 0
 defaultZEnd = None
@@ -101,6 +109,7 @@ class CAMOperation(object):
         self.max_tabs = defaultMaxTabs
         self.direction = direction
         self.shapes = [CAMOperationShape(shape, self) for shape in shapes]
+        self.priority = None
         self.update()
     def update(self):
         for i in self.shapes:
@@ -135,6 +144,12 @@ class CAMOperationItem(QStandardItem):
     def __init__(self, operation):
         QStandardItemModel.__init__(self, operation.description())
         self.operation = operation
+    def data(self, role):
+        if role == Qt.InitialSortOrderRole:
+            if self.operation.priority is not None:
+                return self.operation.priority
+            return defaultPriorityPerDirection[self.operation.direction]
+        return QStandardItem.data(self, role)
 
 class StandardModelIterator:
     def __init__(self, model, itemFn = None):
@@ -156,6 +171,7 @@ class StandardModelIterator:
 class CAMOperationsModel(QStandardItemModel):
     def __init__(self):
         QStandardItemModel.__init__(self)
+        self.setSortRole(Qt.InitialSortOrderRole)
     def addOperation(self, op):
         nrows = self.rowCount()
         self.appendRow(CAMOperationItem(op))

@@ -70,45 +70,44 @@ class EditableProperty(object):
     def validate(self, value):
         return value
 
-class FloatEditableProperty(EditableProperty):
-    def __init__(self, name, attribute, format, min = None, max = None, allow_none = False, none_value = "none"):
-        EditableProperty.__init__(self, name, attribute, format)
+class NumEditableProperty(EditableProperty):
+    def __init__(self, name, attribute, format = None, min = None, max = None, allow_none = False, none_value = "none"):
+        EditableProperty.__init__(self, name, attribute, self.defaultFormat() if format is None else format)
         self.min = min
         self.max = max
         self.allow_none = allow_none
         self.none_value = none_value
-    def toEditString(self, value):
-        if value is None:
-            return ""
-        return self.format % (value,)
     def toTextColor(self, value):
         return "gray" if value is None else None
     def toDisplayString(self, value):
         if value is None:
             return self.none_value
         return self.format % (value,)
+    def toEditString(self, value):
+        if value is None:
+            return ""
+        return self.format % (value,)
     def validate(self, value):
         if value == "" and self.allow_none:
             return None
-        value = float(value)
+        value = self.fromEditString(value)
         if self.min is not None and value < self.min:
             value = self.min
         if self.max is not None and value > self.max:
             value = self.max
         return value
 
-class IntEditableProperty(EditableProperty):
-    def __init__(self, name, attribute, format = "%d", min = None, max = None):
-        EditableProperty.__init__(self, name, attribute, format)
-        self.min = min
-        self.max = max
-    def validate(self, value):
-        value = int(value)
-        if self.min is not None and value < self.min:
-            value = self.min
-        if self.max is not None and value > self.max:
-            value = self.max
-        return value
+class FloatEditableProperty(NumEditableProperty):
+    def fromEditString(self, value):
+        return float(value)
+    def defaultFormat(self):
+        raise ValueError, "No format specified"
+
+class IntEditableProperty(NumEditableProperty):
+    def fromEditString(self, value):
+        return int(value)
+    def defaultFormat(self):
+        return "%d"
 
 class MultipleItem(object):
     @staticmethod
@@ -139,7 +138,7 @@ class PropertyTableWidgetItem(QTableWidgetItem):
         return QTableWidgetItem.data(self, role)
 
 class PropertySheetWidget(QTableWidget):
-    propertyChanged = pyqtSignal([list])
+    propertyChanged = pyqtSignal([str, list])
     def __init__(self, properties):
         QTableWidget.__init__(self, len(properties), 1)
         self.properties = properties
@@ -170,7 +169,7 @@ class PropertySheetWidget(QTableWidget):
                 print e
             finally:
                 self.refreshRow(row)
-            self.propertyChanged.emit(changed)
+            self.propertyChanged.emit(prop.attribute, changed)
     def refreshRow(self, row):
         if self.objects is None:
             self.setItem(row, 0, None)

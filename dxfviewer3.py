@@ -181,6 +181,8 @@ class OperationTreeWidget(QDockWidget):
         self.w.layout().addWidget(self.list)
         self.w.layout().addWidget(self.toolbar)
         self.onSelectionChanged(None, None)
+    def sort(self):
+        self.list.model().sort(0)
     def getSelected(self):
         sm = self.list.selectionModel()
         ops = []
@@ -207,20 +209,23 @@ class ObjectPropertiesWidget(QDockWidget):
         FloatEditableProperty("Tab spacing", "tab_spacing", "%0.3f"),
         IntEditableProperty('Min tabs', "min_tabs", min = 0, max = 10),
         IntEditableProperty('Max tabs', "max_tabs", min = 0, max = 10),
+        IntEditableProperty('Priority', "priority", min = 0, max = 100, allow_none = True, none_value = "Default"),
     ]
-    def __init__(self, viewer):
+    def __init__(self, viewer, tree):
         QDockWidget.__init__(self, "Properties")
         self.viewer = viewer
+        self.operationTree = tree
         self.updating = False
-        self.operations = None
         self.initUI()
     def initUI(self):
         self.table = PropertySheetWidget(self.properties)
         self.table.propertyChanged.connect(self.onPropertyChanged)
         self.setWidget(self.table)
-    def onPropertyChanged(self, changed):
+    def onPropertyChanged(self, attribute, changed):
         for o in changed:
             o.update()
+        if attribute == "priority":
+            self.operationTree.sort()
         self.viewer.updateSelection()
     def setOperations(self, operations):
         self.table.setObjects(operations)
@@ -245,7 +250,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.setStatusBar(self.statusbar)
         self.viewer = DXFViewer(drawing)
         self.operationTree = OperationTreeWidget(self.viewer)
-        self.objectProperties = ObjectPropertiesWidget(self.viewer)
+        self.objectProperties = ObjectPropertiesWidget(self.viewer, self.operationTree)
         self.addDockWidget(Qt.RightDockWidgetArea, self.operationTree)
         self.addDockWidget(Qt.RightDockWidgetArea, self.objectProperties)
         self.setCentralWidget(self.viewer)
@@ -283,6 +288,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
             op = CAMOperation(dir, shapes, defaultTool)
             index = self.viewer.operations.addOperation(op)
             self.operationTree.select(index)
+        self.operationTree.sort()
         self.viewer.updateSelection()
     def updateOperationsAndRedraw(self):
         for o in self.viewer.operations:
