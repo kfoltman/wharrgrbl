@@ -35,24 +35,63 @@ class CAMTool(object):
         self.length = None
         self.clearance = 5
         self.stepover = 77
+        self.ramp_depth = 0.1
     def begin(self):
         return []
-    def followContour(self, nodes, z, last, lastz):
+    def addOp(self, op, startz, endz, last, lastz):
+        if type(op) is DrawingLine:
+            ops = self.moveTo(op.start, startz, last, lastz)
+            if op.start != op.end:
+                ops += self.lineTo(op.end, endz)
+            return ops, op.end
+        elif type(op) is DrawingArc:
+            ops = self.moveTo(op.start, startz, last, lastz)
+            ops += self.arc(op.start, op.end, op.centre, op.span < 0, endz)
+            return ops, op.end
+        else:
+            raise ValueError, "Unexpected type %s" % type(op)
+    def addRamp(self, nodes, z, last, lastz, depth):
         ops = []
-        for i in nodes:
-            if type(i) is DrawingLine:
-                ops += self.moveTo(i.start, z, last, lastz)
-                ops += self.lineTo(i.end, z)
-                last = i.end
-                lastz = z
-            elif type(i) is DrawingArc:
-                ops += self.moveTo(i.start, z, last, lastz)
-                ops += self.arc(i.start, i.end, i.centre, i.span < 0, z)
-                last = i.end
-                lastz = z
-            elif isinstance(i, DrawingPolyline):
-                dops, last, lastz = self.followContour(i.nodes, z, last, lastz)
+        while lastz > z:
+            destz = max(z, lastz - depth)
+            pl = DrawingPolyline(nodes).cut(0, self.diameter)
+
+            initz = lastz
+            tlength = pl.length()
+            sofar = 0
+            # ramp into layer
+            for i in pl.flatten():
+                startz = initz + (destz - initz) * sofar / tlength
+                sofar += i.length()
+                endz = initz + (destz - initz) * sofar / tlength
+                dops, last = self.addOp(i, startz, endz, last, lastz)
+                lastz = endz
                 ops += dops
+            # clean up the ramp by doing a flat pass in reverse
+            dops, last, lastz = self.followContourNoRamp(pl.reversed().flatten(), destz, last, lastz)
+            ops += dops
+        return ops, last, lastz
+    def followContour(self, nodes, z, last, lastz, topz):
+        ops = []
+        # this should be calculated based on ramp angle instead
+        depth = self.ramp_depth
+        topz = max(topz, z)
+        if lastz > topz:
+            ops += self.plungeTo(topz, lastz)
+            lastz = topz
+        if z < lastz and depth > 0:
+            dops, last, lastz = self.addRamp(nodes, z, last, lastz, depth)
+            ops += dops
+        dops, last, lastz = self.followContourNoRamp(nodes, z, last, lastz)
+        ops += dops
+        return ops, last, lastz
+    def followContourNoRamp(self, nodes, z, last, lastz):
+        ops = []
+        nodes2 = []
+        for i in nodes:
+            dops, last = self.addOp(i, z, z, last, lastz)
+            ops += dops
+            lastz = z
         return ops, last, lastz
     def plungeTo(self, z, lastz):
         if z < lastz:

@@ -78,16 +78,19 @@ class DXFViewer(PreviewBase):
             self.curOperation = op
             self.is_tab = True
             for n in op.previewPaths:
-                n.addToPath(self, self.drawingPath, True, False)
+                for i in n:
+                    i.addToPath(self, self.drawingPath, True, False)
             self.is_tab = False
             for n in op.previewPaths:
-                n.addToPath(self, self.drawingPath, True, False)
+                for i in n:
+                    i.addToPath(self, self.drawingPath, True, False)
         if debugToolPaths:
             for i in xrange(self.operations.rowCount()):
                 op = self.operations.item(i).operation
                 self.curOperation = op
                 for n in op.previewPaths:
-                    n.addToPath(self, self.drawingPath, True, True)
+                    for i in n:
+                        i.addToPath(self, self.drawingPath, True, True)
         self.curOperation = None
         for o in self.objects:
             o.addToPath(self, self.drawingPath, False, False)

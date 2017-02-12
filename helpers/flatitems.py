@@ -56,6 +56,8 @@ class DrawingItem(object):
             return True
         w = map(int, self.weight.split("/"))
         return (w[0] <= 0 and w[1] > 0) or (w[1] <= 0 and w[0] > 0)
+    def flatten(self):
+        return [self]
 
 class DrawingLine(DrawingItem):
     def __init__(self, start, end):
@@ -262,6 +264,9 @@ class DrawingArc(DrawingItem):
             da.weight = self.weight
             return da
 
+def reversed_nodes(nodes):
+    return [i.reversed() for i in reversed(nodes)]
+
 class DrawingPolyline(DrawingItem):
     def __init__(self, nodes):
         DrawingItem.__init__(self)
@@ -310,6 +315,13 @@ class DrawingPolyline(DrawingItem):
             return None
     def calcBounds(self):
         return reduce(QRectF.united, [o.bounds for o in self.nodes])
+    def flatten(self):
+        res = []
+        for i in self.nodes:
+            res += i.flatten()
+        return res
+    def reversed(self):
+        return DrawingPolyline(reversed_nodes(self.nodes))
             
 class DrawingCircle(DrawingPolyline):
     def __init__(self, centre, radius):
@@ -355,9 +367,6 @@ def findOrientation(nodes):
         return +1
         print "Shape to the left"
     return 0
-
-def reversed_nodes(nodes):
-    return [i.reversed() for i in reversed(nodes)]
 
 traceOffsetCode = False
 checkBoundsInIntersections = False

@@ -12,6 +12,7 @@ class ToolEditDlg(PropertyDialog):
         FloatEditableProperty("Plunge rate", "plunge", "%0.1f mm/min", min = 0),
         FloatEditableProperty("Stepover", "stepover", "%0.1f %%", min = 0),
         FloatEditableProperty("Clearance height", "clearance", "%0.1f mm", min = 0, allow_none = True, none_value = "Material default"),
+        FloatEditableProperty("Ramp depth", "ramp_depth", "%0.2f mm", min = 0),
     ]
     def __init__(self, tool):
         PropertyDialog.__init__(self, tool, ToolEditDlg.properties)

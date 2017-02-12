@@ -33,9 +33,9 @@ class CAMOperationShape(object):
             self.ntabs = 0
         else:
             self.ntabs = min(self.parent.max_tabs, max(self.parent.min_tabs, int(1 + self.item.length() // self.parent.tab_spacing)))
-        self.fullPaths = self.generateFullPaths()
-    def generateTabs(self, path, tool):
-        l = path.length()
+        self.fullPaths = [i.flatten() for i in self.generateFullPaths()]
+    def generateTabs(self, nodes, tool):
+        l = DrawingPolyline(nodes).length()
         n = self.ntabs
         if not n:
             return [(0, l, False)]
@@ -132,12 +132,12 @@ class CAMOperation(object):
     def generatePreviewPaths(self):
         paths = []
         for s in self.shapes:
-            for p in s.fullPaths:
-                for start, end, is_tab in s.generateTabs(p, self.tool):
-                    c = p.cut(start, end)
+            for nodes in s.fullPaths:
+                for start, end, is_tab in s.generateTabs(nodes, self.tool):
+                    c = DrawingPolyline(nodes).cut(start, end)
                     c.setIsTab(is_tab)
                     if c is not None:
-                        paths.append(c)
+                        paths.append(c.flatten())
         return paths
 
 class CAMOperationItem(QStandardItem):
@@ -196,7 +196,9 @@ class CAMOperationsModel(QStandardItemModel):
                 for p in s.fullPaths:
                     z = o.zstart
                     tabs = s.generateTabs(p, o.tool)
+                    p = DrawingPolyline(p)
                     while z > zend:
+                        safez = z
                         z -= o.tool.depth
                         if z < zend:
                             z = zend
@@ -206,10 +208,10 @@ class CAMOperationsModel(QStandardItemModel):
                             ztab = min(zend + o.tab_height, o.zstart)
                         if z < ztab:
                             for start, end, is_tab in tabs:
-                                opsc, last, lastz = o.tool.followContour([p.cut(start, end)], z if not is_tab else max(z, ztab), last, lastz)
+                                opsc, last, lastz = o.tool.followContour(p.cut(start, end).flatten(), z if not is_tab else max(z, ztab), last, lastz, safez)
                                 ops += opsc
                         else:
-                            opsc, last, lastz = o.tool.followContour([p], z, last, lastz)
+                            opsc, last, lastz = o.tool.followContour(p.nodes, z, last, lastz, safez)
                             ops += opsc
         if lastTool is not None:
             ops += lastTool.moveTo(qpxy(0, 0), lastTool.clearance, last, lastz)
