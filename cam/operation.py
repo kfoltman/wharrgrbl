@@ -50,7 +50,7 @@ class CAMOperationShape(object):
         p = self.parent
         if p.direction == ShapeDirection.OUTLINE:
             if type(self.item) is DrawingPolyline:
-                return removeLoops2(plugSmallGaps(eliminateCrossings(plugSmallGaps(self.item.nodes))))
+                return plugSmallGaps(eliminateCrossings(plugSmallGaps(self.item.nodes)))
                 #return removeLoops2(eliminateCrossings(self.item.nodes), windingRule = False)
             else:
                 return [self.item]
