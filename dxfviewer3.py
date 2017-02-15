@@ -34,15 +34,21 @@ class MyRubberBand(QRubberBand):
 class DXFViewer(PreviewBase):
     selected = pyqtSignal([])
     mouseMoved = pyqtSignal([])
-    def __init__(self, drawing):
+    def __init__(self):
         PreviewBase.__init__(self)
-        self.objects = dxfToObjects(drawing)
         self.operations = CAMOperationsModel()
+        self.setDrawing(None)
+    def setDrawing(self, drawing):
+        self.operations.clear()
         self.selection = None
         self.opSelection = []
         self.curOperation = None
         self.lastMousePos = None
         self.updateCursor()
+        if drawing:
+            self.objects = dxfToObjects(drawing)
+        else:
+            self.objects = []
     def getPen(self, item, is_virtual, is_debug):
         if is_virtual:
             color = QColor(160, 160, 160)
@@ -234,9 +240,29 @@ class ObjectPropertiesWidget(QDockWidget):
         self.table.setObjects(operations)
 
 class DXFMainWindow(QMainWindow, MenuHelper):
-    def __init__(self, drawing):
+    def __init__(self):
         QMainWindow.__init__(self)
-        self.drawing = drawing
+        MenuHelper.__init__(self)
+        self.drawing = None
+        menuBar = self.menuBar()
+        self.documentFile = None
+        fileMenu = menuBar.addMenu("&File")
+        fileMenu.addAction(self.makeAction("&Open", "Ctrl+O", "Open a file", self.onFileOpen))
+        fileMenu.addSeparator()
+        fileMenu.addAction(self.makeAction("&Generate", "Ctrl+E", "Generate toolpaths and write them to a file", self.onOperationGenerate))
+        fileMenu.addSeparator()
+        fileMenu.addAction(self.makeAction("E&xit", "Ctrl+Q", "Exit the application", self.close))
+        toolpathMenu = menuBar.addMenu("&Toolpaths")
+        toolpathMenu.addAction(self.makeAction("&Profile", "", "Cut on the outside of a shape", self.onOperationProfile))
+        toolpathMenu.addAction(self.makeAction("&Cutout", "", "Cut on the inside of a shape", self.onOperationCutout))
+        toolpathMenu.addAction(self.makeAction("P&ocket", "", "Cut the entire inside of a shape", self.onOperationPocket))
+        toolpathMenu.addAction(self.makeAction("&Engrave", "", "Cut along the shape", self.onOperationEngrave))
+        optionsMenu = menuBar.addMenu("&Options")
+        optionsMenu.addAction(self.makeAction("&Tool", "Ctrl+T", "Tool settings (only one tool supported for now)", self.onOperationTool))
+        optionsMenu.addAction(self.makeAction("&Material", "Ctrl+M", "Material settings", self.onOperationMaterial))
+        optionsMenu.addAction(self.makeAction("&Debug", "Ctrl+G", "Debug mode on/off", self.onOperationDebug))
+        self.updateActions()
+        
         self.toolbar = QToolBar("Operations")
         self.toolbar.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.toolbar.addAction("Profile").triggered.connect(self.onOperationProfile)
@@ -251,7 +277,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.addToolBar(self.toolbar)
         self.statusbar = QStatusBar()
         self.setStatusBar(self.statusbar)
-        self.viewer = DXFViewer(drawing)
+        self.viewer = DXFViewer()
         self.operationTree = OperationTreeWidget(self.viewer)
         self.objectProperties = ObjectPropertiesWidget(self.viewer, self.operationTree)
         self.addDockWidget(Qt.RightDockWidgetArea, self.operationTree)
@@ -264,6 +290,20 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.viewer.mouseMoved.connect(self.updateStatus)
     def updateStatus(self):
         self.statusBar().showMessage("(%0.3f, %0.3f)" % (self.viewer.lastMousePos))
+    def onFileOpen(self):
+        opendlg = QtGui.QFileDialog(self, 'Open file', '.', "DXF files (*.dxf)")
+        opendlg.setFileMode(QtGui.QFileDialog.ExistingFile)
+        if self.documentFile is not None:
+            opendlg.selectFile(self.documentFile)
+        if opendlg.exec_():
+            self.directory = opendlg.directory().absolutePath()
+            fnames = opendlg.selectedFiles()
+            if len(fnames) == 1:
+                self.loadFile(str(fnames[0]))
+    def loadFile(self, fname):
+        self.drawing = dxfgrabber.readfile(fname)
+        self.viewer.setDrawing(self.drawing)
+        self.viewer.updateSelection()
     def onOperationsSelected(self):
         selected = self.operationTree.getSelected()
         self.objectProperties.setOperations(selected)
@@ -323,8 +363,9 @@ class DXFMainWindow(QMainWindow, MenuHelper):
 
 def main():    
     app = DXFApplication(sys.argv)
-    drawing = dxfgrabber.readfile(sys.argv[1])
-    w = DXFMainWindow(drawing)
+    w = DXFMainWindow()
+    if len(sys.argv) > 1:
+        w.loadFile(sys.argv[1])
     w.show()
     retcode = app.exec_()
     w = None
