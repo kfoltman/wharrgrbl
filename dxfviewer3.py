@@ -244,6 +244,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         QMainWindow.__init__(self)
         MenuHelper.__init__(self)
         self.drawing = None
+        self.directory = None
         menuBar = self.menuBar()
         self.documentFile = None
         fileMenu = menuBar.addMenu("&File")
@@ -295,6 +296,8 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         opendlg.setFileMode(QtGui.QFileDialog.ExistingFile)
         if self.documentFile is not None:
             opendlg.selectFile(self.documentFile)
+        if self.directory is not None:
+            opendlg.setDirectory(self.directory)
         if opendlg.exec_():
             self.directory = opendlg.directory().absolutePath()
             fnames = opendlg.selectedFiles()
