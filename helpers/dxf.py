@@ -2,6 +2,24 @@ from helpers.flatitems import *
 import dxfgrabber
 import dxfgrabber.dxfentities
 
+def bulgeToArcParams(p1, p2, bulge):
+    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    theta = 4 * math.atan(bulge)
+    dist = math.sqrt(dx ** 2 + dy ** 2)
+    a = math.atan2(dy, dx)
+    d = dist / 2.0
+    r = abs(d / math.sin(theta / 2))
+    c = d / math.tan(theta / 2)
+    da = math.pi / 2.0
+    xm0 = (p1[0] + p2[0]) / 2.0
+    ym0 = (p1[1] + p2[1]) / 2.0
+    xm = xm0 - c * math.sin(a)
+    ym = ym0 + c * math.cos(a)
+    sangle = math.atan2(p1[1] - ym, p1[0] - xm)
+    span = theta
+    pc = QPointF(xm, ym)
+    return pc, r, sangle, span
+
 def dxfToObjects(drawing):
     objects = []
     entities = dxfgrabber.dxfentities
@@ -25,24 +43,10 @@ def dxfToObjects(drawing):
                 points.append(points[0])
             for p in range(len(points) - 1):
                 if i.bulge[p]:
-                    #print i.bulge[p]
                     p1 = i.points[p]
                     p2 = i.points[(p + 1) % len(i.points)]
-                    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
-                    theta = 4 * math.atan(i.bulge[p])
-                    dist = math.sqrt(dx ** 2 + dy ** 2)
-                    a = math.atan2(dy, dx)
-                    d = dist / 2.0
-                    r = abs(d / math.sin(theta / 2))
-                    c = d / math.tan(theta / 2)
-                    da = math.pi / 2.0
-                    xm0 = (p1[0] + p2[0]) / 2.0
-                    ym0 = (p1[1] + p2[1]) / 2.0
-                    xm = xm0 - c * math.sin(a)
-                    ym = ym0 + c * math.cos(a)
-                    sangle = math.atan2(p1[1] - ym, p1[0] - xm)
-                    span = theta
-                    nodes.append(DrawingArc(QPointF(xm, ym), r, sangle, span))
+                    pc, r, sangle, span = bulgeToArcParams(p1, p2, i.bulge[p])
+                    nodes.append(DrawingArc(pc, r, sangle, span))
                     #self.drawArcImpl(xm, ym, 0, 0, r, sangle, theta * 360 / (2 * math.pi), self.drawingPath, self.drawingPen)
                 else:
                     if points[p] != points[p + 1]:
