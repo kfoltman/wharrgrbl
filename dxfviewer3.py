@@ -1,7 +1,9 @@
+import json
 import math
 import re
 import sys
 import time
+import os.path
 from cam.tool import *
 from cam.operation import *
 from cam.tooledit import *
@@ -19,36 +21,21 @@ from helpers.flatitems import *
 
 debugToolPaths = False
 
-class MyRubberBand(QRubberBand):
-    def paintEvent(self, e):
-        qp = QPainter()
-        qp.begin(self)
-        pen = QPen(QColor(255, 0, 0))
-        brush = QBrush(QColor(255, 0, 0))
-        qp.setPen(pen)
-        qp.setBrush(brush)
-        qp.drawRect(self.rect().adjusted(0, 0, -1, -1))
-        qp.fillRect(self.rect().adjusted(0, 0, -1, -1), QBrush(QColor(255, 0, 0)))
-        qp.end()
-
 class DXFViewer(PreviewBase):
     selected = pyqtSignal([])
     mouseMoved = pyqtSignal([])
     def __init__(self):
         PreviewBase.__init__(self)
         self.operations = CAMOperationsModel()
-        self.setDrawing(None)
-    def setDrawing(self, drawing):
+        self.setDrawing([])
+    def setDrawing(self, objects = []):
         self.operations.clear()
         self.selection = None
         self.opSelection = []
         self.curOperation = None
         self.lastMousePos = None
         self.updateCursor()
-        if drawing:
-            self.objects = dxfToObjects(drawing)
-        else:
-            self.objects = []
+        self.objects = objects
     def getPen(self, item, is_virtual, is_debug):
         if is_virtual:
             color = QColor(160, 160, 160)
@@ -164,6 +151,39 @@ class DXFViewer(PreviewBase):
             if box.contains(o.bounds):
                 o.setMarked(True)
         self.updateSelection()
+    def loadDrawing(self, js):
+        objs = []
+        ops = []
+        refmap = {}
+        for k, v in js['objects'].items():
+            data = jsonToDrawingObject(v)
+            refmap[k] = data
+            objs.append(data)
+        # Only one tool for now
+        for k, v in js['tools'].items():
+            refmap[k] = defaultTool
+            defaultTool.unserialise(v)
+        defaultMaterial.unserialise(js['material'])
+        self.setDrawing(objs)
+        for i in js['operations']:
+            op = CAMOperation(None, [], None)
+            op.unserialise(i, refmap)
+            op.update()
+            self.operations.appendRow(CAMOperationItem(op))
+        self.updateSelection()
+    def serialise(self):
+        refmap = RefMap()
+        objs = {}
+        ops = []
+        tools = {}
+        cnt = 0
+        for i in self.objects:
+            objs[refmap.refn(i)] = i.serialise()
+        for i in self.operations:
+            ops.append(i.serialise(refmap))
+        tools[refmap.refn(defaultTool)] = defaultTool.serialise(refmap)
+        return { 'objects' : objs, 'operations' : ops, 'tools' : tools,
+            'material' : defaultMaterial.serialise(refmap) }
     
 class DXFApplication(QApplication):
     pass
@@ -243,13 +263,13 @@ class DXFMainWindow(QMainWindow, MenuHelper):
     def __init__(self):
         QMainWindow.__init__(self)
         MenuHelper.__init__(self)
-        self.drawing = None
         self.directory = None
         menuBar = self.menuBar()
         self.documentFile = None
         fileMenu = menuBar.addMenu("&File")
-        fileMenu.addAction(self.makeAction("&Open", "Ctrl+O", "Open a file", self.onFileOpen))
+        fileMenu.addAction(self.makeAction("&Open", "Ctrl+O", "Open a drawing or a project", self.onFileOpen))
         fileMenu.addSeparator()
+        fileMenu.addAction(self.makeAction("&Save a project", "Ctrl+S", "Save a project", self.onFileSave))
         fileMenu.addAction(self.makeAction("&Generate", "Ctrl+E", "Generate toolpaths and write them to a file", self.onOperationGenerate))
         fileMenu.addSeparator()
         fileMenu.addAction(self.makeAction("E&xit", "Ctrl+Q", "Exit the application", self.close))
@@ -291,8 +311,23 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.viewer.mouseMoved.connect(self.updateStatus)
     def updateStatus(self):
         self.statusBar().showMessage("(%0.3f, %0.3f)" % (self.viewer.lastMousePos))
+    def onFileSave(self):
+        opendlg = QtGui.QFileDialog(self, 'Save a project', '.', "CAM project files (*.camp)")
+        opendlg.setFileMode(0)
+        opendlg.setAcceptMode(QtGui.QFileDialog.AcceptSave)
+        if self.documentFile is not None:
+            opendlg.selectFile(self.documentFile)
+        if opendlg.exec_():
+            self.directory = opendlg.directory().absolutePath()
+            fnames = opendlg.selectedFiles()
+            if len(fnames) == 1:
+                self.saveFile(str(fnames[0]))
+    def saveFile(self, fname):
+        f = open(fname, "w")
+        f.write(json.dumps(self.viewer.serialise(), indent = 4))
+        f.close()
     def onFileOpen(self):
-        opendlg = QtGui.QFileDialog(self, 'Open file', '.', "DXF files (*.dxf)")
+        opendlg = QtGui.QFileDialog(self, 'Open a file', '.', "DXF files (*.dxf);;CAM project files (*.camp)")
         opendlg.setFileMode(QtGui.QFileDialog.ExistingFile)
         if self.documentFile is not None:
             opendlg.selectFile(self.documentFile)
@@ -304,8 +339,13 @@ class DXFMainWindow(QMainWindow, MenuHelper):
             if len(fnames) == 1:
                 self.loadFile(str(fnames[0]))
     def loadFile(self, fname):
-        self.drawing = dxfgrabber.readfile(fname)
-        self.viewer.setDrawing(self.drawing)
+        path, ext = os.path.splitext(fname)
+        if ext.lower() == ".camp":
+            self.documentFile = path + ext
+            self.viewer.loadDrawing(json.load(file(fname, "r")))
+        else:
+            self.documentFile = path + '.camp'
+            self.viewer.setDrawing(dxfToObjects(dxfgrabber.readfile(fname)))
         self.viewer.updateSelection()
     def onOperationsSelected(self):
         selected = self.operationTree.getSelected()

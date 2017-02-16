@@ -1,6 +1,30 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
+class RefMap(dict):
+    def __init__(self):
+        self.seqcnt = 0
+    def ref(self, ob):
+        if ob in self:
+            return ob
+        self[ob] = "%s/%d" % (type(ob).__name__, self.seqcnt)
+        self.seqcnt += 1
+        return ob
+    def refn(self, ob):
+        return self[self.ref(ob)]
+
+class MyRubberBand(QRubberBand):
+    def paintEvent(self, e):
+        qp = QPainter()
+        qp.begin(self)
+        pen = QPen(QColor(255, 0, 0))
+        brush = QBrush(QColor(255, 0, 0))
+        qp.setPen(pen)
+        qp.setBrush(brush)
+        qp.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        qp.fillRect(self.rect().adjusted(0, 0, -1, -1), QBrush(QColor(255, 0, 0)))
+        qp.end()
+
 class MenuHelper(object):
     def __init__(self):
         self.update_actions = []
@@ -197,6 +221,14 @@ class PropertySheetWidget(QTableWidget):
         self.setEnabled(len(self.objects) > 0)
         for i in xrange(len(self.properties)):
             self.refreshRow(i)
+
+class Serialisable(object):
+    def serialise(self, refmap):
+        return { v.attribute: v.getData(self) for v in self.properties }
+    def unserialise(self, data):
+        for prop in self.properties:
+            if prop.attribute in data:
+                prop.setData(self, data[prop.attribute])
 
 class PropertyDialog(QDialog):
     def __init__(self, subject, properties):

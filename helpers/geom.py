@@ -18,6 +18,8 @@ def qp(p):
     return QPointF(p[0], p[1])
 def qpxy(x, y):
     return QPointF(x, y)
+def qps(p):
+    return [p.x(), p.y()]
 def unqp(p):
     return (p.x(), p.y())
 def r2d(r):
@@ -48,6 +50,24 @@ def interp(p1, p2, c):
     return QPointF(p1.x() * (1 - c) + p2.x() * c, p1.y() * (1 - c) + p2.y() * c)
 def eqtol(value, expected, eps = defaultEps):
     return abs(value - expected) < eps
+def bulgeToArcParams(p1, p2, bulge):
+    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    theta = 4 * math.atan(bulge)
+    dist = math.sqrt(dx ** 2 + dy ** 2)
+    a = math.atan2(dy, dx)
+    d = dist / 2.0
+    r = abs(d / math.sin(theta / 2))
+    c = d / math.tan(theta / 2)
+    da = math.pi / 2.0
+    xm0 = (p1[0] + p2[0]) / 2.0
+    ym0 = (p1[1] + p2[1]) / 2.0
+    xm = xm0 - c * math.sin(a)
+    ym = ym0 + c * math.cos(a)
+    sangle = math.atan2(p1[1] - ym, p1[0] - xm)
+    span = theta
+    pc = QPointF(xm, ym)
+    return pc, r, sangle, span
+
 def assert_eqtol(value, expected, eps = defaultEps):
     if abs(value - expected) >= eps:
         assert False, "Value %f, expected %f, difference %f, tolerance %f" % (value, expected, (value - expected), eps)

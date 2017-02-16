@@ -1,12 +1,9 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from helpers.gui import *
-import tool
+from tool import CAMMaterial
 
 class MaterialEditDlg(PropertyDialog):
-    properties = [
-        FloatEditableProperty("Thickness", "thickness", "%0.2f", min = 0),
-        FloatEditableProperty("Clearance height", "clearance", "%0.1f", min = 0),
-    ]
     def __init__(self, material):
-        PropertyDialog.__init__(self, material, MaterialEditDlg.properties)
+        PropertyDialog.__init__(self, material, CAMMaterial.properties)
+        self.setWindowTitle("Material properties")

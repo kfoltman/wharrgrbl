@@ -12,6 +12,8 @@ class DrawingItem(object):
         self.marked = False
         self.windings = None
         self.weight = None
+    def serialise(self):
+        return {'type' : type(self).__name__}
     def setMarked(self, marked):
         self.marked = marked
     def setIsTab(self, is_tab):
@@ -66,6 +68,8 @@ class DrawingLine(DrawingItem):
         self.end = end
         self.startAngle = self.endAngle = math.atan2(self.end.y() - self.start.y(), self.end.x() - self.start.x())
         self.bounds = self.calcBounds()
+    def serialise(self):
+        return {'type' : type(self).__name__, "start" : qps(self.start), "end" : qps(self.end)}
     def addToPath(self, viewer, path, is_virtual, is_debug):
         pen = viewer.getPen(self, is_virtual, is_debug)
         if pen is None:
@@ -108,6 +112,9 @@ class DrawingLine(DrawingItem):
     def maxY(self):
         return max(self.start.y(), self.end.y())
 
+def bulgeToArc(p1, p2, bulge):
+    return DrawingArc(*bulgeToArcParams(p1, p2, bulge))
+
 class DrawingArc(DrawingItem):
     def __init__(self, centre, radius, sangle, span):
         DrawingItem.__init__(self)
@@ -121,6 +128,9 @@ class DrawingArc(DrawingItem):
         self.start = circ(self.centre, self.radius, self.sangle)
         self.end = circ(self.centre, self.radius, self.sangle + self.span)
         self.bounds = self.calcBounds()
+    def serialise(self):
+        return {'type' : type(self).__name__, "start" : qps(self.start), "end" : qps(self.end), 'bulge' : math.tan(self.span / 4)}
+        #return {'type' : type(self).__name__, "radius" : self.radius, "centre" : qps(self.centre), "sangle" : self.sangle, "span" : self.span }
     def length(self):
         return abs(self.span) * self.radius
     def reversed(self):
@@ -264,6 +274,17 @@ class DrawingArc(DrawingItem):
             da.weight = self.weight
             return da
 
+def jsonToDrawingObject(js):
+    if js['type'] == 'DrawingPolyline':
+        return DrawingPolyline([jsonToDrawingObject(x) for x in js['nodes']])
+    elif js['type'] == 'DrawingLine':
+        return DrawingLine(qp(js['start']), qp(js['end']))
+    elif js['type'] == 'DrawingArc':
+        return bulgeToArc(js['start'], js['end'], js['bulge'])
+        #return DrawingArc(qp(js['centre']), js['radius'], js['sangle'], js['span'])
+    else:
+        raise ValueError, "Unhandled type %s" % js['type']
+
 def reversed_nodes(nodes):
     return [i.reversed() for i in reversed(nodes)]
 
@@ -322,6 +343,8 @@ class DrawingPolyline(DrawingItem):
         return res
     def reversed(self):
         return DrawingPolyline(reversed_nodes(self.nodes))
+    def serialise(self):
+        return {'type' : type(self).__name__, "nodes" : [n.serialise() for n in self.nodes]}
             
 class DrawingCircle(DrawingPolyline):
     def __init__(self, centre, radius):

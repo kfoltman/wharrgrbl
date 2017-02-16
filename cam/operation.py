@@ -111,6 +111,27 @@ class CAMOperation(object):
         self.shapes = [CAMOperationShape(shape, self) for shape in shapes]
         self.priority = None
         self.update()
+    def serialise(self, refmap):
+        return {
+            'tool' : refmap.refn(self.tool),
+            'zstart' : self.zstart,
+            'zend' : self.zend,
+            'tab_height' : self.tab_height,
+            'tab_width' : self.tab_width,
+            'tab_spacing' : self.tab_spacing,
+            'min_tabs' : self.min_tabs,
+            'max_tabs' : self.max_tabs,
+            'direction' : self.direction,
+            'priority' : self.priority,
+            'shapes' : [refmap.refn(i.item) for i in self.shapes]
+        }
+    def unserialise(self, value, refmap):
+        self.tool = refmap[value['tool']]
+        for i in ('zstart', 'zend', 'tab_height', 'tab_width', 'tab_spacing',
+            'min_tabs', 'max_tabs', 'direction', 'priority'):
+            if i in value:
+                setattr(self, i, value[i])
+        self.shapes = [CAMOperationShape(refmap[shape], self) for shape in value['shapes']]
     def update(self):
         for i in self.shapes:
             i.update()
