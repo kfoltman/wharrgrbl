@@ -270,7 +270,8 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         fileMenu.addAction(self.makeAction("&Open", "Ctrl+O", "Open a drawing or a project", self.onFileOpen))
         fileMenu.addSeparator()
         fileMenu.addAction(self.makeAction("&Save a project", "Ctrl+S", "Save a project", self.onFileSave))
-        fileMenu.addAction(self.makeAction("&Generate", "Ctrl+E", "Generate toolpaths and write them to a file", self.onOperationGenerate))
+        fileMenu.addAction(self.makeAction("Save &as...", "", "Save a project to a different file", self.onFileSaveAs))
+        fileMenu.addAction(self.makeAction("&Generate...", "Ctrl+E", "Generate toolpaths and write them to a file", self.onOperationGenerate))
         fileMenu.addSeparator()
         fileMenu.addAction(self.makeAction("E&xit", "Ctrl+Q", "Exit the application", self.close))
         toolpathMenu = menuBar.addMenu("&Toolpaths")
@@ -312,17 +313,26 @@ class DXFMainWindow(QMainWindow, MenuHelper):
     def updateStatus(self):
         self.statusBar().showMessage("(%0.3f, %0.3f)" % (self.viewer.lastMousePos))
     def onFileSave(self):
+        path, ext = os.path.splitext(self.documentFile)
+        if os.path.normcase(ext) == '.camp':
+            self.saveFile(path + ext)
+        else:
+            self.onFileSaveAs()
+    def onFileSaveAs(self):
         opendlg = QtGui.QFileDialog(self, 'Save a project', '.', "CAM project files (*.camp)")
         opendlg.setFileMode(0)
         opendlg.setAcceptMode(QtGui.QFileDialog.AcceptSave)
+        opendlg.setDefaultSuffix('.camp')
         if self.documentFile is not None:
-            opendlg.selectFile(self.documentFile)
+            path, ext = os.path.splitext(self.documentFile)
+            opendlg.selectFile(path + '.camp')
         if opendlg.exec_():
             self.directory = opendlg.directory().absolutePath()
             fnames = opendlg.selectedFiles()
             if len(fnames) == 1:
                 self.saveFile(str(fnames[0]))
     def saveFile(self, fname):
+        self.documentFile = os.path.abspath(fname)
         f = open(fname, "w")
         f.write(json.dumps(self.viewer.serialise(), indent = 4))
         f.close()
@@ -339,12 +349,11 @@ class DXFMainWindow(QMainWindow, MenuHelper):
             if len(fnames) == 1:
                 self.loadFile(str(fnames[0]))
     def loadFile(self, fname):
+        self.documentFile = os.path.abspath(fname)
         path, ext = os.path.splitext(fname)
         if ext.lower() == ".camp":
-            self.documentFile = path + ext
             self.viewer.loadDrawing(json.load(file(fname, "r")))
         else:
-            self.documentFile = path + '.camp'
             self.viewer.setDrawing(dxfToObjects(dxfgrabber.readfile(fname)))
         self.viewer.updateSelection()
     def onOperationsSelected(self):
@@ -397,12 +406,20 @@ class DXFMainWindow(QMainWindow, MenuHelper):
             matedit.rollback()
         self.updateOperationsAndRedraw()
     def onOperationGenerate(self):
-        ops = self.viewer.operations.toGcode()
-        f = file("test.nc", "w")
-        for op in ops:
-            print op
-            f.write("%s\n" % op)
-        f.close()
+        opendlg = QtGui.QFileDialog(self, 'Save a toolpath', '.', "G-Code files (*.nc;*.gcode)")
+        opendlg.setFileMode(0)
+        opendlg.setAcceptMode(QtGui.QFileDialog.AcceptSave)
+        opendlg.setDefaultSuffix('.nc')
+        if self.documentFile is not None:
+            path, ext = os.path.splitext(self.documentFile)
+            opendlg.selectFile(path + '.nc')
+        if opendlg.exec_():
+            ops = self.viewer.operations.toGcode()
+            f = file(opendlg.selectedFiles()[0], "w")
+            for op in ops:
+                print op
+                f.write("%s\n" % op)
+            f.close()
 
 def main():    
     app = DXFApplication(sys.argv)
