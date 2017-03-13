@@ -12,6 +12,8 @@ class DrawingItem(object):
         self.marked = False
         self.windings = None
         self.weight = None
+    def extraDesc(self):
+        return None
     def serialise(self):
         return {'type' : type(self).__name__}
     def setMarked(self, marked):
@@ -130,6 +132,8 @@ class DrawingArc(DrawingItem):
         self.start = circ(self.centre, self.radius, self.sangle)
         self.end = circ(self.centre, self.radius, self.sangle + self.span)
         self.bounds = self.calcBounds()
+    def extraDesc(self):
+        return circ(self.centre, self.radius, self.sangle + 0.5 * self.span)
     def serialise(self):
         return {'type' : type(self).__name__, "start" : qps(self.start), "end" : qps(self.end), 'bulge' : math.tan(self.span / 4)}
         #return {'type' : type(self).__name__, "radius" : self.radius, "centre" : qps(self.centre), "sangle" : self.sangle, "span" : self.span }
@@ -805,6 +809,8 @@ def removeLoops2(nodes, windingRule = True):
         m = 1048576.0
         return (int(x * m + 0.5) / m, int(y * m + 0.5) / m)
     def treatp(p):
+        if p is None:
+            return p
         return treat(p.x(), p.y())
     coords = set([])
     weights = collections.defaultdict(lambda: 0)
@@ -822,18 +828,20 @@ def removeLoops2(nodes, windingRule = True):
     for i, n in enumerate(nodes):
         s = treatp(n.start)
         e = treatp(n.end)
-        weights[(s, e)] += 1
-        weights[(e, s)] -= 1
+        weights[(s, e, treatp(n.extraDesc()))] += 1
+        weights[(e, s, treatp(n.reversed().extraDesc()))] -= 1
     for i, n in enumerate(nodes):
         s = treatp(n.start)
         e = treatp(n.end)
-        if s != e and weights[(s, e)] > 0:
-            assert weights[(e, s)] == -weights[(s, e)]
-            weights[n] = weights[(s, e)]
+        c = treatp(n.extraDesc())
+        crev = treatp(n.reversed().extraDesc())
+        if s != e and weights[(s, e, c)] > 0:
+            assert weights[(e, s, c)] == -weights[(s, e, crev)]
+            weights[n] = weights[(s, e, c)]
             vertexes[s].addEdge(n, e, False)
             vertexes[e].addEdge(n, s, True)
-            del weights[(s, e)]
-            del weights[(e, s)]
+            del weights[(s, e, c)]
+            del weights[(e, s, crev)]
     sno = 0
     snos = {}
     for edge in nodes:
