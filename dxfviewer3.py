@@ -36,6 +36,14 @@ class DXFViewer(PreviewBase):
         self.lastMousePos = None
         self.updateCursor()
         self.objects = objects
+    def getMinimumPoint(self):
+        coords = []
+        for i in objects:
+            coords += i.points()
+        if coords:
+            return qpxy(min([i.x() for i in coords]), min([i.y() for i in coords]))
+        else:
+            return qpxy(0, 0)
     def getPen(self, item, is_virtual, is_debug):
         if is_virtual:
             color = QColor(160, 160, 160)
@@ -91,6 +99,13 @@ class DXFViewer(PreviewBase):
         trect = QRectF(self.rect()).translated(self.translation)
         if self.drawingPath is not None:
             self.drawingPath.render(qp, QRectF(self.rect()), trect)
+        if self.actionMode == 1:
+            qp.setPen(QtGui.QPen(QtGui.QColor(255, 0, 0), 1))
+            qp.drawText(qpxy(16, 16), "Please select the origin point")
+            if self.newRelativeZero is not None:
+                mx, my = self.project(self.newRelativeZero.x(), self.newRelativeZero.y(), 0)
+                qp.drawLine(0, my, self.size().width(), my)
+                qp.drawLine(mx, 0, mx, self.size().height())
     def updateCursor(self):
         self.setCursor(Qt.CrossCursor)
     def getItemAtPoint(self, p):
@@ -101,6 +116,14 @@ class DXFViewer(PreviewBase):
             print "Warning: Multiple items at similar distance"
         if mind < 10 / self.getScale():
             return matches[0][0]
+    def getPointAtPoint(self, p):
+        pts = reduce(set.__or__, [i.points() for i in self.objects], set())
+        matches = sorted([(i, pdist(i, p)) for i in pts], lambda o1, o2: cmp(o1[1], o2[1]))
+        mind = matches[0][1] if len(matches) > 0 else None
+        if len(matches):
+            return matches[0][0], mind
+        else:
+            return None, None
     def updateSelection(self):
         self.createPainters()
         self.repaint()
@@ -110,27 +133,52 @@ class DXFViewer(PreviewBase):
     def setOpSelection(self, selection):
         self.opSelection = selection
         self.updateSelection()
+    def doOriginSelection(self):
+        self.actionMode = 1
+        self.newRelativeZero = None
+        self.repaint()
     def mousePressEvent(self, e):
         b = e.button()
         if b == Qt.LeftButton:
             p = e.posF()
             lp = self.physToLog(p)
-            item = self.getItemAtPoint(lp)
-            if item:
-                item.setMarked(not item.marked)
-                self.updateSelection()
-            else:
-                if self.selection is None:
-                    self.selection = MyRubberBand(QRubberBand.Rectangle, self)
-                self.selectionOrigin = e.pos()
-                self.selection.setGeometry(QRect(e.pos(), QSize()))
-                self.selection.show()
+            if self.actionMode == 0:
+                item = self.getItemAtPoint(lp)
+                if item:
+                    item.setMarked(not item.marked)
+                    self.updateSelection()
+                else:
+                    if self.selection is None:
+                        self.selection = MyRubberBand(QRubberBand.Rectangle, self)
+                    self.selectionOrigin = e.pos()
+                    self.selection.setGeometry(QRect(e.pos(), QSize()))
+                    self.selection.show()
+            elif self.actionMode == 1:
+                pt, dist = self.getPointAtPoint(qp(lp))
+                if self.newRelativeZero is not None:
+                    self.relativeZero = self.newRelativeZero
+                    self.actionMode = 0
+                    self.createPainters()
+                    self.repaint()
         elif b == Qt.RightButton:
             self.start_point = e.posF()
             self.prev_point = e.posF()
             self.start_origin = (self.x0, self.y0)
             self.dragging = True
     def mouseMoveEvent(self, e):
+        if self.actionMode == 1:
+            p = e.posF()
+            lp = self.physToLog(p)
+            pt, dist = self.getPointAtPoint(qp(lp))
+            if dist < 20 / self.getScale():
+                if pt != self.newRelativeZero:
+                    self.newRelativeZero = pt
+                    self.repaint()
+            else:
+                if self.newRelativeZero is not None:
+                    self.newRelativeZero = None
+                    self.repaint()
+
         if self.selection and self.selection.isVisible():
             self.selection.setGeometry(QRect(self.selectionOrigin, e.pos()).normalized())
         PreviewBase.mouseMoveEvent(self, e)
@@ -155,6 +203,10 @@ class DXFViewer(PreviewBase):
         objs = []
         ops = []
         refmap = {}
+        if 'zero' in js:
+            self.relativeZero = qpxy(js['zero'][0], js['zero'][1])
+        else:
+            self.relativeZero = qpxy(0, 0)
         for k, v in js['objects'].items():
             data = jsonToDrawingObject(v)
             refmap[k] = data
@@ -183,7 +235,8 @@ class DXFViewer(PreviewBase):
             ops.append(i.serialise(refmap))
         tools[refmap.refn(defaultTool)] = defaultTool.serialise(refmap)
         return { 'objects' : objs, 'operations' : ops, 'tools' : tools,
-            'material' : defaultMaterial.serialise(refmap) }
+            'material' : defaultMaterial.serialise(refmap),
+            'zero' : (self.relativeZero.x(), self.relativeZero.y()) }
     
 class DXFApplication(QApplication):
     pass
@@ -282,6 +335,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         optionsMenu = menuBar.addMenu("&Options")
         optionsMenu.addAction(self.makeAction("&Tool", "Ctrl+T", "Tool settings (only one tool supported for now)", self.onOperationTool))
         optionsMenu.addAction(self.makeAction("&Material", "Ctrl+M", "Material settings", self.onOperationMaterial))
+        optionsMenu.addAction(self.makeAction("&Origin", "Ctrl+I", "Origin settings", self.onOperationOrigin))
         optionsMenu.addAction(self.makeAction("&Debug", "Ctrl+G", "Debug mode on/off", self.onOperationDebug))
         self.updateActions()
         
@@ -295,6 +349,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         self.toolbar.addAction("Unselect").triggered.connect(self.onOperationUnselect)
         self.toolbar.addAction("Tool").triggered.connect(self.onOperationTool)
         self.toolbar.addAction("Material").triggered.connect(self.onOperationMaterial)
+        self.toolbar.addAction("Origin").triggered.connect(self.onOperationOrigin)
         self.toolbar.addAction("Debug").triggered.connect(self.onOperationDebug)
         self.addToolBar(self.toolbar)
         self.statusbar = QStatusBar()
@@ -393,6 +448,8 @@ class DXFMainWindow(QMainWindow, MenuHelper):
         global debugToolPaths
         debugToolPaths = not debugToolPaths
         self.viewer.updateSelection()
+    def onOperationOrigin(self):
+        self.viewer.doOriginSelection()
     def onOperationTool(self):
         tooledit = ToolEditDlg(defaultTool)
         tooledit.grid.propertyChanged.connect(self.updateOperationsAndRedraw)
@@ -414,7 +471,7 @@ class DXFMainWindow(QMainWindow, MenuHelper):
             path, ext = os.path.splitext(self.documentFile)
             opendlg.selectFile(path + '.nc')
         if opendlg.exec_():
-            ops = self.viewer.operations.toGcode()
+            ops = self.viewer.operations.toGcode(-self.viewer.relativeZero)
             f = file(opendlg.selectedFiles()[0], "w")
             for op in ops:
                 print op

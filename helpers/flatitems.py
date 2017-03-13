@@ -70,6 +70,8 @@ class DrawingLine(DrawingItem):
         self.bounds = self.calcBounds()
     def serialise(self):
         return {'type' : type(self).__name__, "start" : qps(self.start), "end" : qps(self.end)}
+    def points(self):
+        return set([self.start, self.end])
     def addToPath(self, viewer, path, is_virtual, is_debug):
         pen = viewer.getPen(self, is_virtual, is_debug)
         if pen is None:
@@ -92,8 +94,8 @@ class DrawingLine(DrawingItem):
         return QLineF(self.start, self.end)
     def length(self):
         return QLineF(self.start, self.end).length()
-    def clone(self):
-        dl = DrawingLine(self.start, self.end)
+    def clone(self, translate = QPointF()):
+        dl = DrawingLine(self.start + translate, self.end + translate)
         dl.weight = self.weight
         return dl
     def cut(self, start, end):
@@ -131,6 +133,18 @@ class DrawingArc(DrawingItem):
     def serialise(self):
         return {'type' : type(self).__name__, "start" : qps(self.start), "end" : qps(self.end), 'bulge' : math.tan(self.span / 4)}
         #return {'type' : type(self).__name__, "radius" : self.radius, "centre" : qps(self.centre), "sangle" : self.sangle, "span" : self.span }
+    def points(self):
+        line1 = QLineF()
+        line1.setP1(self.start)
+        line1.setAngle(r2d(self.startAngle))
+        line2 = QLineF()
+        line2.setP1(self.end)
+        line2.setAngle(-r2d(self.endAngle))
+        p = QPointF(self.centre)
+        if line1.intersect(line2, p):
+            return set([self.start, self.end, p])
+        else:
+            return set([self.start, self.end])
     def length(self):
         return abs(self.span) * self.radius
     def reversed(self):
@@ -259,8 +273,8 @@ class DrawingArc(DrawingItem):
         else:
             dist = min(pdist(p, self.start), pdist(p, self.end))
             return dist
-    def clone(self):
-        da = DrawingArc(self.centre, self.radius, self.sangle, self.span)
+    def clone(self, translate = QPointF()):
+        da = DrawingArc(self.centre + translate, self.radius, self.sangle, self.span)
         da.weight = self.weight
         return da
     def cut(self, start, end):
@@ -312,6 +326,10 @@ class DrawingPolyline(DrawingItem):
         self.is_tab = is_tab
         for i in self.nodes:
             i.setIsTab(is_tab)
+    def clone(self, translate = QPointF()):
+        return DrawingPolyline([i.clone(translate) for i in self.nodes])
+    def points(self):
+        return reduce(set.__or__, [i.points() for i in self.nodes], set())
     def length(self):
         return sum([i.length() for i in self.nodes])
     def cut(self, start, end):

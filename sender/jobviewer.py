@@ -10,6 +10,7 @@ class PreviewBase(QtGui.QWidget):
     clicked = QtCore.pyqtSignal([float, float])
     def __init__(self):
         QtGui.QWidget.__init__(self)
+        self.relativeZero = QtCore.QPointF(0, 0)
         self.actionMode = 0
         self.job = None
         self.motions = None
@@ -39,6 +40,8 @@ class PreviewBase(QtGui.QWidget):
         qp.setPen(QtGui.QPen(QtGui.QColor(208, 208, 208), 1))
         gx = self.x0 - self.x0 % self.grid
         gy = self.y0 - self.y0 % self.grid
+        gx += self.relativeZero.x() % self.grid - self.grid
+        gy += self.relativeZero.y() % self.grid - self.grid
         while True:
             mx, my = self.project(0, gy, 0)
             if my < 0:
@@ -54,7 +57,7 @@ class PreviewBase(QtGui.QWidget):
 
         qp.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255), 1))        
 
-        mx, my = self.project(0, 0, 0)
+        mx, my = self.project(self.relativeZero.x(), self.relativeZero.y(), 0)
         qp.drawLine(0, my, self.size().width(), my)
         qp.drawLine(mx, 0, mx, self.size().height())
 
