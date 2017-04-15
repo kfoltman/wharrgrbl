@@ -37,6 +37,18 @@ def dxfToObjects(drawing):
                     #polyline.lineTo(points[p + 1][0], points[p + 1][1])
             polyline = DrawingPolyline(nodes)
             objects.append(polyline)
+        elif it is entities.Polyline:
+            nodes = []
+            points = []
+            for p in range(len(i.points)):
+                points.append(i.points[p])
+            if i.flags & 1:
+                points.append(points[0])
+            for p in range(len(points) - 1):
+                if points[p] != points[p + 1]:
+                    nodes.append(DrawingLine(QPointF(*points[p][0:2]), QPointF(*points[p + 1][0:2])))
+            polyline = DrawingPolyline(nodes)
+            objects.append(polyline)
         else:
             print "Unknown DXF type:", str(it)
     return objects
