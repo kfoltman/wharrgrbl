@@ -22,14 +22,24 @@ def gencode(**kwargs):
             s += k.upper() + fmtfloat(v)
     return s
 
+class MillingDirections(dict):
+    CONVENTIONAL = 0
+    CLIMB = 1
+    def __init__(self):
+        dict.__init__(self)
+        self[self.CONVENTIONAL] = "Conventional"
+        self[self.CLIMB] = "Climb"
+
 class CAMMaterial(Serialisable):
     properties = [
         FloatEditableProperty("Thickness", "thickness", "%0.2f", min = 0),
         FloatEditableProperty("Clearance height", "clearance", "%0.1f", min = 0),
+        EnumEditableProperty("Def. direction", "def_direction", MillingDirections(), allow_none = False),
     ]
     def __init__(self, thickness, clearance):
         self.thickness = thickness
         self.clearance = clearance
+        self.def_direction = MillingDirections.CONVENTIONAL
 
 class CAMTool(Serialisable):
     properties = [

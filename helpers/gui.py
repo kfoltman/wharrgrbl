@@ -81,6 +81,8 @@ class EditableProperty(object):
         self.name = name
         self.attribute = attribute
         self.format = format
+    def cellWidget(self, callback):
+        return None
     def getData(self, item):
         return getattr(item, self.attribute)
     def setData(self, item, value):
@@ -133,6 +135,43 @@ class IntEditableProperty(NumEditableProperty):
     def defaultFormat(self):
         return "%d"
 
+class EnumEditableProperty(EditableProperty):
+    def __init__(self, name, attribute, enumclass, allow_none = False, none_value = "Default"):
+        EditableProperty.__init__(self, name, attribute)
+        self.enumclass = enumclass
+        self.allow_none = allow_none
+        self.none_value = none_value
+    def cellWidget(self, callback):
+        cb = QComboBox()
+        cb.setFrame(False)
+        if self.allow_none:
+            cb.addItem(self.none_value, None)
+        for k, v in self.enumclass.items():
+            cb.addItem(v, k)
+        cb.currentIndexChanged.connect(lambda: callback(cb.currentText()))
+        return cb
+    def updateCellWidget(self, cw, value):
+        cw.setCurrentIndex(cw.findData(value))
+    def fromEditString(self, value):
+        if value == self.none_value and self.allow_none:
+            return None
+        for k, v in self.enumclass.items():
+            if value == v:
+                return k
+        raise ValueError, "Invalid value: %s" % str(value)
+    def toTextColor(self, value):
+        return "gray" if value is None else None
+    def toDisplayString(self, value):
+        return self.toEditString(value)
+    def toEditString(self, value):
+        if value is None:
+            return self.none_value
+        if value in self.enumclass:
+            return self.enumclass[value]
+        return ""
+    def validate(self, value):
+        return self.fromEditString(value)
+
 class MultipleItem(object):
     @staticmethod
     def __str__(self):
@@ -176,7 +215,15 @@ class PropertySheetWidget(QTableWidget):
         self.horizontalHeader().setClickable(False)
         self.setSelectionMode(QAbstractItemView.SingleSelection)
         self.setCurrentCell(0, 0)
+        def cb(row):
+            return lambda(value): self.setCellFromWidget(row, value)
         self.cellChanged.connect(self.onCellChanged)
+        for row, p in enumerate(self.properties):
+            cw = p.cellWidget(cb(row))
+            if cw:
+                self.setCellWidget(row, 0, cw)
+    def setCellFromWidget(self, row, value):
+        self.item(row, 0).setData(Qt.EditRole, value)
     def onCellChanged(self, row, column):
         if self.objects and not self.updating:
             item = self.item(row, column)
@@ -211,6 +258,9 @@ class PropertySheetWidget(QTableWidget):
             try:
                 self.updating = True
                 self.setItem(row, 0, PropertyTableWidgetItem(prop, v))
+                cw = self.cellWidget(row, 0)
+                if cw is not None:
+                    prop.updateCellWidget(cw, v)
             finally:
                 self.updating = False
         else:

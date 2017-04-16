@@ -96,7 +96,6 @@ class CAMOperationShape(object):
 
         return offset(self.item.nodes, r)
 
-
 class CAMOperation(object):
     def __init__(self, direction, shapes, tool):
         self.tool = tool
@@ -108,6 +107,7 @@ class CAMOperation(object):
         self.min_tabs = defaultMinTabs
         self.max_tabs = defaultMaxTabs
         self.direction = direction
+        self.milldirection = None
         self.shapes = [CAMOperationShape(shape, self) for shape in shapes]
         self.priority = None
         self.update()
@@ -213,11 +213,14 @@ class CAMOperationsModel(QStandardItemModel):
             lastz = 5
             last = None
             zend = o.zend or -defaultMaterial.thickness
+            mdir = o.milldirection if o.milldirection is not None else defaultMaterial.def_direction
             for s in o.shapes:
                 for p in s.fullPaths:
                     z = o.zstart
                     tabs = s.generateTabs(p, o.tool)
                     p = DrawingPolyline(p)
+                    if (mdir == MillingDirections.CONVENTIONAL and o.direction == ShapeDirection.OUTSIDE):
+                        p = p.reversed()
                     while z > zend:
                         safez = z
                         z -= o.tool.depth

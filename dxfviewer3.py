@@ -292,6 +292,7 @@ class ObjectPropertiesWidget(QDockWidget):
         IntEditableProperty('Min tabs', "min_tabs", min = 0, max = 10),
         IntEditableProperty('Max tabs', "max_tabs", min = 0, max = 10),
         IntEditableProperty('Priority', "priority", min = 0, max = 100, allow_none = True, none_value = "Default"),
+        EnumEditableProperty('Direction', "milldirection", MillingDirections(), allow_none = True, none_value = "Default"),
     ]
     def __init__(self, viewer, tree):
         QDockWidget.__init__(self, "Properties")
