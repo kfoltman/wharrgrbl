@@ -255,7 +255,7 @@ class CNCPendant(QtGui.QGroupBox):
                         self.zeroAxis(axis, newValue)
                 return returnPressedFunc
             coordWidget.clicked.connect(mkLocal(axis, coordWidget))
-            layout.addWidget(coordWidget, index + 1, 1)
+            layout.addWidget(coordWidget, index + 1, 1, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
             self.workWidgets[axis] = coordWidget
             zeroWidget = QtGui.QPushButton("0")
             def q(axis):
