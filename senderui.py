@@ -346,8 +346,11 @@ class CNCPendant(QtGui.QGroupBox):
                     'H' : "Hold",
                     'R' : "Reset",
                     'P' : "Probe",
+                    'X' : "EndX",
+                    'Y' : "EndY",
+                    'Z' : "EndZ",
                 }
-                fs.append("Pins: %s" % "".join(accNames[pin] for pin in g.pins))
+                fs.append("Pins: %s" % "".join(accNames.get(pin, '(%s)' % pin) for pin in g.pins))
             self.feedSpeedWidget.setText(" | ".join(fs))
         self.jogger.setEnabled(self.grbl.canAcceptCommands(mode))
         self.holdButton.setEnabled(isConnected and mode != "Hold")
