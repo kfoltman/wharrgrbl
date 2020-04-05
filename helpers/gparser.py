@@ -99,6 +99,7 @@ class TestGcodeReceiver(object):
         self.speed = speed
 
 class GcodeCommand(object):
+    modal = False
     def __init__(self, name, as_gcode = None):
         self.name = name
         self.gcode = as_gcode
@@ -141,6 +142,7 @@ class SpeedCommand(GcodeCommand):
         receiver.handleSpeed(self.speed, data)
 
 class MotionCommand(GcodeCommand):
+    modal = True
     def as_gcode(self, data):
         cmd = "%s" % self.gcode
         for v in "XYZIJK":
@@ -223,6 +225,7 @@ class GcodeState(object):
     def __init__(self, receiver):
         self.receiver = receiver
         self.word_extractor = re.compile("([A-Za-z])([-+0-9.]*)")
+        self.sticky_state = {}
     @staticmethod
     def prepare(line):
         line = line.strip()
@@ -253,6 +256,7 @@ class GcodeState(object):
         return line, comment
     def handle_line(self, line):
         words = {}
+        words.update(self.sticky_state)
         line, comment = self.prepare(line)
         for word, value in self.word_extractor.findall(line):
             if value != "":
@@ -279,9 +283,11 @@ class GcodeState(object):
             else:
                 words[word] = valueFloat
         for ctype in cmdTypeList:
-            ctype = ctype.__name__
-            if ctype in words:
-                words[ctype].execute(self.receiver, words)
+            cname = ctype.__name__
+            if cname in words:
+                words[cname].execute(self.receiver, words)
+                if ctype.modal:
+                    self.sticky_state[cname] = words[cname]
 
 if __name__ == "__main__":
     lines = map(str.strip, open(sys.argv[1], "r").readlines())
