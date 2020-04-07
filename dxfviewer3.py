@@ -9,8 +9,9 @@ from cam.matedit import *
 
 import dxfgrabber
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 from sender.jobviewer import *
 from helpers.dxf import dxfToObjects
 from helpers.gui import *
@@ -107,7 +108,7 @@ class DXFViewer(PreviewBase):
     def mousePressEvent(self, e):
         b = e.button()
         if b == Qt.LeftButton:
-            p = e.posF()
+            p = e.localPos()
             lp = self.physToLog(p)
             item = self.getItemAtPoint(lp)
             if item:
@@ -120,15 +121,15 @@ class DXFViewer(PreviewBase):
                 self.selection.setGeometry(QRect(e.pos(), QSize()))
                 self.selection.show()
         elif b == Qt.RightButton:
-            self.start_point = e.posF()
-            self.prev_point = e.posF()
+            self.start_point = e.localPos()
+            self.prev_point = e.localPos()
             self.start_origin = (self.x0, self.y0)
             self.dragging = True
     def mouseMoveEvent(self, e):
         if self.selection and self.selection.isVisible():
             self.selection.setGeometry(QRect(self.selectionOrigin, e.pos()).normalized())
         PreviewBase.mouseMoveEvent(self, e)
-        self.lastMousePos = self.physToLog(e.posF())
+        self.lastMousePos = self.physToLog(e.localPos())
         self.mouseMoved.emit()
     def mouseReleaseEvent(self, e):
         if self.selection and self.selection.isVisible():

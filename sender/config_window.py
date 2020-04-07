@@ -2,7 +2,7 @@ import math
 import sys
 from config import Global
 from sender import SerialDeviceFinder
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 from helpers.gui import MenuHelper
 
 class GrblConfigModel(QtCore.QAbstractTableModel):
@@ -53,9 +53,9 @@ class GrblConfigModel(QtCore.QAbstractTableModel):
             return True
         return False
     
-class ConfigTableView(QtGui.QTableView):
+class ConfigTableView(QtWidgets.QTableView):
     def __init__(self, parent, config_model):
-        QtGui.QTableView.__init__(self, parent)
+        QtWidgets.QTableView.__init__(self, parent)
         self.setModel(config_model)
         self.setColumnWidth(0, 80)
         self.setColumnWidth(1, 500)
@@ -64,20 +64,20 @@ class ConfigTableView(QtGui.QTableView):
         self.verticalHeader().show()
         self.resizeRowsToContents()
 
-class MachineConfigDialog(QtGui.QDialog):
+class MachineConfigDialog(QtWidgets.QDialog):
     def __init__(self, config_model):
-        QtGui.QDialog.__init__(self)
+        QtWidgets.QDialog.__init__(self)
         self.setWindowTitle("Grbl configuration")
-        layout = QtGui.QVBoxLayout(self)
+        layout = QtWidgets.QVBoxLayout(self)
         self.tableView = ConfigTableView(self, config_model)
         layout.addWidget(self.tableView)
     def showEvent(self, e):
         self.tableView.setFocus()
         #self.add(self.tableView)
 
-class AppConfigDialog(QtGui.QDialog):
+class AppConfigDialog(QtWidgets.QDialog):
     def __init__(self):
-        QtGui.QDialog.__init__(self)
+        QtWidgets.QDialog.__init__(self)
         self.finder = SerialDeviceFinder()
         self.comPorts = QtGui.QStandardItemModel()
         devices = [(None, "Autodetect the device")] + list(self.finder.devices)
@@ -89,24 +89,24 @@ class AppConfigDialog(QtGui.QDialog):
         self.initUI()
         self.setWindowTitle("Wharrgrbl configuration")
     def initUI(self):
-        layout = QtGui.QFormLayout()
-        self.comboPorts = QtGui.QComboBox()
+        layout = QtWidgets.QFormLayout()
+        self.comboPorts = QtWidgets.QComboBox()
         self.comboPorts.setModel(self.comPorts)
         self.comboPorts.setCurrentIndex(self.defaultDeviceIndex)
-        self.labelPortName = QtGui.QLabel()
-        self.gcodeDirectory = QtGui.QLineEdit()
-        self.gcodeDirectoryButton = QtGui.QPushButton("Select")
+        self.labelPortName = QtWidgets.QLabel()
+        self.gcodeDirectory = QtWidgets.QLineEdit()
+        self.gcodeDirectoryButton = QtWidgets.QPushButton("Select")
         self.gcodeDirectoryButton.clicked.connect(self.selectGcodeDirectory)
-        buttons = QtGui.QHBoxLayout()
-        button = QtGui.QPushButton("Cancel")
+        buttons = QtWidgets.QHBoxLayout()
+        button = QtWidgets.QPushButton("Cancel")
         button.clicked.connect(self.reject)
         buttons.addWidget(button)
-        button = QtGui.QPushButton("&OK")
+        button = QtWidgets.QPushButton("&OK")
         button.setDefault(True)
         button.clicked.connect(self.accept)
         buttons.addWidget(button)
         
-        gcodeDirectoryLayout = QtGui.QHBoxLayout()
+        gcodeDirectoryLayout = QtWidgets.QHBoxLayout()
         gcodeDirectoryLayout.addWidget(self.gcodeDirectory)
         gcodeDirectoryLayout.addWidget(self.gcodeDirectoryButton)
         
@@ -119,12 +119,12 @@ class AppConfigDialog(QtGui.QDialog):
         self.updatePortName(self.defaultDeviceIndex)
         self.gcodeDirectory.setText(Global.settings.gcode_directory)
     def selectGcodeDirectory(self):
-        newdir = QtGui.QFileDialog.getExistingDirectory(self, "Select G-Code directory", self.gcodeDirectory.text())
+        newdir = QtWidgets.QFileDialog.getExistingDirectory(self, "Select G-Code directory", self.gcodeDirectory.text())
         if newdir != "":
             self.gcodeDirectory.setText(newdir)
     def updatePortName(self, i):
-        self.labelPortName.setText("%s" % self.comPorts.data(self.comPorts.index(i, 1)).toString())
-        dev = str(self.comPorts.data(self.comPorts.index(i, 0)).toString())
+        self.labelPortName.setText("%s" % self.comPorts.data(self.comPorts.index(i, 1)))
+        dev = str(self.comPorts.data(self.comPorts.index(i, 0)))
         if dev == "Autodetect":
             dev = None
         self.selectedDevice = dev

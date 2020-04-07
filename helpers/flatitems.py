@@ -1,7 +1,7 @@
 import math
 import collections
 from helpers.geom import *
-from PyQt4.QtGui import *
+from PyQt5.QtGui import *
 import sys
 
 # Extend the bounds to account for numerical errors

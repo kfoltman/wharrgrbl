@@ -1,18 +1,18 @@
 import math
 import sys
 sys.path += ['.']
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 from cam.rdkic import *
 from helpers.preview import PathPreview
 from cam.mill import *
 from helpers.gui import MenuHelper
 
-class CAMApplication(QtGui.QApplication):
+class CAMApplication(QtWidgets.QApplication):
     pass
 
-class CAMMainWindow(QtGui.QMainWindow, MenuHelper):
+class CAMMainWindow(QtWidgets.QMainWindow, MenuHelper):
     def __init__(self):
-        QtGui.QMainWindow.__init__(self)
+        QtWidgets.QMainWindow.__init__(self)
         MenuHelper.__init__(self)
         self.milling_params = MillingParams()
         self.initUI()
@@ -89,7 +89,7 @@ class CAMMainWindow(QtGui.QMainWindow, MenuHelper):
         fileMenu.addAction(self.makeAction("E&xit", "Ctrl+Q", "Exit the application", self.close))
 
         viewMenu = menuBar.addMenu("&View")
-        group = QtGui.QActionGroup(self)
+        group = QtWidgets.QActionGroup(self)
         
         viewMenu.addAction(self.requiresBoard(self.makeAction("&Zoom in", "Ctrl++", "Zoom in", self.onViewZoomIn)))
         viewMenu.addAction(self.requiresBoard(self.makeAction("Zoo&m out", "Ctrl+-", "Zoom out", self.onViewZoomOut)))
@@ -103,14 +103,14 @@ class CAMMainWindow(QtGui.QMainWindow, MenuHelper):
         viewMenu.addAction(self.requiresBoard(self.makeRadioAction("&Cuts", "Ctrl+T", "See the cuts layer", group, lambda: self.onViewLayer("Edge.Cuts"), lambda: self.view.cur_layer == "Edge.Cuts")))
         
         toolpathMenu = menuBar.addMenu("&Toolpath")
-        group = QtGui.QActionGroup(self)
+        group = QtWidgets.QActionGroup(self)
         toolpathMenu.addAction(self.makeRadioAction("0.&1mm", "Ctrl+1", "Set milling diameter to 0.1mm", group, lambda: self.onToolDiameter(0.1), lambda: self.milling_params.tool_width == 0.1))
         toolpathMenu.addAction(self.makeRadioAction("0.&2mm", "Ctrl+2", "Set milling diameter to 0.2mm", group, lambda: self.onToolDiameter(0.2), lambda: self.milling_params.tool_width == 0.2))
         toolpathMenu.addAction(self.makeRadioAction("0.&3mm", "Ctrl+3", "Set milling diameter to 0.3mm", group, lambda: self.onToolDiameter(0.3), lambda: self.milling_params.tool_width == 0.3))
         toolpathMenu.addAction(self.makeSeparator())
         toolpathMenu.addAction(self.makeCheckAction("&Double isolation", "", "Add extra pass to widen isolation paths (slow!)", self.onToolDouble, lambda: self.milling_params.doubleIsolation))
         
-        self.coordLabel = QtGui.QLabel("")
+        self.coordLabel = QtWidgets.QLabel("")
         self.statusBar().insertPermanentWidget(0, self.coordLabel)
         
         self.setCentralWidget(self.w)
@@ -125,7 +125,7 @@ class CAMMainWindow(QtGui.QMainWindow, MenuHelper):
         self.exportGcode(self.view.board)
         
     def onFileOpen(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '.', "Kicad PCB files (*.kicad_pcb)")
+        fname, ffilter = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', '.', "Kicad PCB files (*.kicad_pcb)")
         if fname != '':
             self.setBoard(KicadBoard(file(fname, "r")))
         

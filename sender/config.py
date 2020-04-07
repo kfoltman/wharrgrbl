@@ -1,4 +1,4 @@
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 def store_array(qs, name, arr, writer):
     qs.beginWriteArray(name)
@@ -7,7 +7,7 @@ def store_array(qs, name, arr, writer):
         writer(qs, arr[i])
     qs.endArray()
 def restore_array(qs, name, defvalue, reader):
-    if qs.value(name + "/size", -1).toInt()[0] == -1:
+    if int(qs.value(name + "/size", -1)) == -1:
         return defvalue
     data = []
     size = qs.beginReadArray(name)
@@ -34,18 +34,17 @@ class Settings:
     gcode_directory = "."
     def restore(self, qs):
         def unp(v):
-            v, t = v.toDouble()
-            return v if t else None
+            return float(v) if v is not None else None
         def restoremacro(qs):
-            return (str(qs.value("name").toString()), str(qs.value("command").toString()))
-        self.device = str(qs.value("serial/device", None).toString())
+            return (str(qs.value("name")), str(qs.value("command")))
+        self.device = str(qs.value("serial/device", None))
         if self.device == "":
             self.device = None
-        self.speed, _ = qs.value("serial/speed", 115200).toInt()
+        self.speed = int(qs.value("serial/speed", 115200))
 
-        self.gcode_directory = qs.value("directories/gcode_directory", ".").toString()
+        self.gcode_directory = qs.value("directories/gcode_directory", ".")
 
-        self.timer_interval, _ = qs.value("serial/timer", 100).toInt()
+        self.timer_interval = int(qs.value("serial/timer", 100))
         self.xysteps = restore_array(qs, "xysteps", self.xysteps, lambda qs: unp(qs.value("step")))
         self.xyspeeds = restore_array(qs, "xyspeeds", self.xyspeeds, lambda qs: unp(qs.value("speed")))
         self.zsteps = restore_array(qs, "zsteps", self.zsteps, lambda qs: unp(qs.value("step")))

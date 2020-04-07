@@ -1,5 +1,5 @@
 import math
-from PyQt4.QtCore import *
+from PyQt5.QtCore import *
 
 defaultEps = 1e-10
 twopi = 2 * math.pi

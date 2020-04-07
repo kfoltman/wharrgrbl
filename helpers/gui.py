@@ -1,5 +1,6 @@
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 class MenuHelper(object):
     def __init__(self):
@@ -147,17 +148,17 @@ class PropertySheetWidget(QTableWidget):
         self.objects = None
         self.setHorizontalHeaderLabels(['Value'])
         self.setVerticalHeaderLabels([p.name for p in self.properties])
-        self.verticalHeader().setResizeMode(QHeaderView.ResizeToContents)
-        self.verticalHeader().setClickable(False)
+        #self.verticalHeader().setResizeMode(QHeaderView.ResizeToContents)
+        #self.verticalHeader().setClickable(False)
         self.horizontalHeader().setStretchLastSection(True)
-        self.horizontalHeader().setClickable(False)
+        #self.horizontalHeader().setClickable(False)
         self.setSelectionMode(QAbstractItemView.SingleSelection)
         self.setCurrentCell(0, 0)
         self.cellChanged.connect(self.onCellChanged)
     def onCellChanged(self, row, column):
         if self.objects and not self.updating:
             item = self.item(row, column)
-            newValueText = item.data(Qt.EditRole).toString()
+            newValueText = item.data(Qt.EditRole)
             prop = self.properties[row]
             changed = []
             try:

@@ -1,7 +1,7 @@
 import math
 import sys
 from gcode import GcodeOutput
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui
 
 def addvec(v1, v2):
     return (v1[0] + v2[0], v1[1] + v2[1])

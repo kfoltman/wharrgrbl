@@ -1,6 +1,6 @@
 import math
 import sys
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui
 
 class GcodeExecCommand(object):
     def __init__(self, model, command, status, pos):

@@ -1,15 +1,15 @@
 import math
 import os
 import time
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 from helpers.gparser import *
 from config import Global
 
-class PreviewBase(QtGui.QWidget):
+class PreviewBase(QtWidgets.QWidget):
     pointerCoords = QtCore.pyqtSignal([float, float])
     clicked = QtCore.pyqtSignal([float, float])
     def __init__(self):
-        QtGui.QWidget.__init__(self)
+        QtWidgets.QWidget.__init__(self)
         self.actionMode = 0
         self.job = None
         self.motions = None
@@ -109,11 +109,11 @@ class PreviewBase(QtGui.QWidget):
     def findScaleLevel(self, scale):
         return math.floor(2 * (math.log(scale / 10.0) / math.log(2.0)))
     def wheelEvent(self, e):
-        if e.delta() > 0:
+        if e.angleDelta().y() > 0:
             self.adjustScale(+1, e.pos())
             self.createPainters()
             self.repaint()
-        if e.delta() < 0:
+        if e.angleDelta().y() < 0:
             self.adjustScale(-1, e.pos())
             self.createPainters()
             self.repaint()
@@ -130,12 +130,12 @@ class PreviewBase(QtGui.QWidget):
     def mousePressEvent(self, e):
         b = e.button()
         if (b == QtCore.Qt.LeftButton and self.actionMode == 0) or b == QtCore.Qt.RightButton:
-            self.start_point = e.posF()
-            self.prev_point = e.posF()
+            self.start_point = e.localPos()
+            self.prev_point = e.localPos()
             self.start_origin = (self.x0, self.y0)
             self.dragging = True
         elif b == QtCore.Qt.LeftButton:
-            self.clicked.emit(self.x0 + e.posF().x() / self.getScale(), self.y0 + (self.rect().height() - e.posF().y()) / self.getScale())
+            self.clicked.emit(self.x0 + e.localPos().x() / self.getScale(), self.y0 + (self.rect().height() - e.localPos().y()) / self.getScale())
         
     def mouseReleaseEvent(self, e):
         if self.dragging:
@@ -148,12 +148,12 @@ class PreviewBase(QtGui.QWidget):
         
     def mouseMoveEvent(self, e):
         if self.dragging:
-            self.x0 = self.start_origin[0] - (e.posF().x() - self.start_point.x()) / self.getScale()
-            self.y0 = self.start_origin[1] + (e.posF().y() - self.start_point.y()) / self.getScale()
-            self.translation -= e.posF() - self.prev_point
-            self.prev_point = e.posF()
+            self.x0 = self.start_origin[0] - (e.localPos().x() - self.start_point.x()) / self.getScale()
+            self.y0 = self.start_origin[1] + (e.localPos().y() - self.start_point.y()) / self.getScale()
+            self.translation -= e.localPos() - self.prev_point
+            self.prev_point = e.localPos()
             self.repaint()
-        self.pointerCoords.emit(*self.physToLog(e.posF()))
+        self.pointerCoords.emit(*self.physToLog(e.pos()))
         
     def loadFromFile(self, fileName):
         if os.stat(fileName).st_size >= 1048576:
@@ -234,8 +234,8 @@ class JobPreview(PreviewBase):
         self.rapidPen = QtGui.QPen(QtGui.QColor(128, 128, 128), 1)
         self.cursorPen = QtGui.QPen(QtGui.QColor(0, 0, 192), 0)
 
-        self.rapidPath = QtGui.QGraphicsScene()
-        self.millingPath = QtGui.QGraphicsScene()
+        self.rapidPath = QtWidgets.QGraphicsScene()
+        self.millingPath = QtWidgets.QGraphicsScene()
 
         if self.motions is not None:
             for m in self.motions:
@@ -262,21 +262,21 @@ class JobPreview(PreviewBase):
             qp.drawLine(x - 5, y - 5, x + 4, y + 4)
             qp.drawLine(x - 5, y + 5, x + 4, y - 4)
 
-class JobPreviewWindow(QtGui.QDialog):
+class JobPreviewWindow(QtWidgets.QDialog):
     def __init__(self):
-        QtGui.QDialog.__init__(self)
+        QtWidgets.QDialog.__init__(self)
         self.grbl = None
         self.initUI()
     def initUI(self):
         def boldLabel(text):
-            l = QtGui.QLabel(text)
+            l = QtWidgets.QLabel(text)
             l.setFont(Global.fonts.mediumBoldFont)
             return l
         def insetLabel():
-            l = QtGui.QLabel()
+            l = QtWidgets.QLabel()
             l.setFont(Global.fonts.mediumFont)
             l.setMinimumWidth(80)
-            l.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Sunken)
+            l.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
             l.setAlignment(QtCore.Qt.AlignRight)
             return l
         self.actionButtons = {}
@@ -284,19 +284,19 @@ class JobPreviewWindow(QtGui.QDialog):
 
         self.preview = JobPreview()
 
-        self.layout = QtGui.QVBoxLayout()
-        self.legendLayout = QtGui.QHBoxLayout()
+        self.layout = QtWidgets.QVBoxLayout()
+        self.legendLayout = QtWidgets.QHBoxLayout()
         self.xLabel = insetLabel()
         self.yLabel = insetLabel()
         self.zLabel = insetLabel()
-        self.toolDiaEdit = QtGui.QLineEdit()
+        self.toolDiaEdit = QtWidgets.QLineEdit()
         self.legendLayout.addWidget(boldLabel("X"), 0)
         self.legendLayout.addWidget(self.xLabel, 0)
         self.legendLayout.addWidget(boldLabel("Y"), 0)
         self.legendLayout.addWidget(self.yLabel, 0)
         self.legendLayout.addWidget(boldLabel("Min Z"), 0)
         self.legendLayout.addWidget(self.zLabel, 0)
-        self.legendLayout.addWidget(QtGui.QLabel("Tool diameter"), 0)
+        self.legendLayout.addWidget(QtWidgets.QLabel("Tool diameter"), 0)
         self.legendLayout.addWidget(self.toolDiaEdit, 0)
         self.legendLayout.addStretch(1)
         self.legendLayout.addWidget(self.createActionButton("&Pan", 0), 0)
@@ -310,7 +310,7 @@ class JobPreviewWindow(QtGui.QDialog):
         self.toolDiaEdit.setText("%0.2f" % self.preview.toolDiameter)
         self.toolDiaEdit.textEdited.connect(self.onTextEdited)
     def createActionButton(self, text, mode):
-        b = QtGui.QRadioButton(text)
+        b = QtWidgets.QRadioButton(text)
         b.setChecked(mode == self.preview.actionMode)
         b.clicked.connect(lambda: self.preview.setActionMode(mode))
         self.actionButtons[mode] = b

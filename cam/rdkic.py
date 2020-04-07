@@ -1,5 +1,5 @@
 import sexpdata
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 import sys
 import math
 

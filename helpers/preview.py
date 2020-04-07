@@ -1,9 +1,9 @@
 import math
 import sys
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 from cam.mill import BoardSizer, PathGenerator
 
-class PathPreview(QtGui.QWidget):
+class PathPreview(QtWidgets.QWidget):
     
     def __init__(self, view, milling_params):
         super(PathPreview, self).__init__()
@@ -23,13 +23,13 @@ class PathPreview(QtGui.QWidget):
     
     def mousePressEvent(self, e):
         self.highlight_net = None
-        self.start_point = e.posF()
+        self.start_point = e.localPos()
         self.dragging = False
         self.rubberband_rect = None
         self.repaint()
         
     def mouseReleaseEvent(self, e):
-        pt = e.posF()
+        pt = e.localPos()
         if not self.dragging:
             self.highlight_net = None
             for net, path in self.paths.items():
@@ -40,11 +40,11 @@ class PathPreview(QtGui.QWidget):
         
     def mouseMoveEvent(self, e):
         if not self.dragging and self.start_point:
-            dist = e.posF() - self.start_point
+            dist = e.localPos() - self.start_point
             if dist.manhattanLength() < 5:
                 self.dragging = True
         if self.dragging:
-            self.rubberband_rect = QtCore.QRectF(self.start_point, e.posF())
+            self.rubberband_rect = QtCore.QRectF(self.start_point, e.localPos())
             self.repaint()
             #print self.rubberbandRect
 

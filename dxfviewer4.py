@@ -9,8 +9,9 @@ from cam.matedit import *
 
 import dxfgrabber
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 from sender.jobviewer import *
 from helpers.dxf import dxfToObjects
 from helpers.gui import *

@@ -2,7 +2,7 @@ import math
 import re
 import sys
 import time
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 from sender import sender
 from helpers.gui import MenuHelper
 from sender.jobviewer import *
@@ -11,13 +11,13 @@ from sender.config_window import *
 from sender.cmdlist import *
 from sender.sender_thread import *
 
-class CNCApplication(QtGui.QApplication):
+class CNCApplication(QtWidgets.QApplication):
     pass
         
-class CNCJogger(QtGui.QGroupBox):
+class CNCJogger(QtWidgets.QGroupBox):
     steps_changed = QtCore.pyqtSignal([])
     def __init__(self, grbl):
-        QtGui.QGroupBox.__init__(self)
+        QtWidgets.QGroupBox.__init__(self)
         self.setTitle("Jogging (Alt+arrows/PgUp/PgDn, End to cancel)")
         self.grbl = grbl
         self.distxy = 10
@@ -51,10 +51,10 @@ class CNCJogger(QtGui.QGroupBox):
         return True
     def makeButton(self, name, layout, locx, locy, fn = None, iconId = None):
         if iconId is not None:
-            icon = QtGui.QApplication.style().standardIcon(iconId)
-            button = QtGui.QPushButton(icon, name)
+            icon = QtWidgets.QApplication.style().standardIcon(iconId)
+            button = QtWidgets.QPushButton(icon, name)
         else:
-            button = QtGui.QPushButton(name)
+            button = QtWidgets.QPushButton(name)
             button.setFont(Global.fonts.bigBoldFont)
             button.setMaximumWidth(QtGui.QFontMetrics(button.font()).width(name.replace("-", "+")) + 10)
         if fn is None:
@@ -70,7 +70,7 @@ class CNCJogger(QtGui.QGroupBox):
         else:
             m = self.distxy * dist
             s = self.speedxy
-        if QtGui.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier:
+        if QtWidgets.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier:
             m *= 10
         if s is None:
             self.grbl.jogTo("G91 %s%s" % (axis, m))
@@ -82,7 +82,7 @@ class CNCJogger(QtGui.QGroupBox):
         setattr(self, var, dist)
         self.steps_changed.emit()
     def initUI(self):        
-        layout = QtGui.QGridLayout()
+        layout = QtWidgets.QGridLayout()
         self.setLayout(layout)
         self.makeButton("Y+", layout, 0, 1)
         self.makeButton("X-", layout, 1, 0)
@@ -92,7 +92,7 @@ class CNCJogger(QtGui.QGroupBox):
         self.makeButton("Z+", layout, 0, 6)
         self.makeButton("Z-", layout, 2, 6)
         def addButton(steps, var, d, v):
-            rb = QtGui.QRadioButton(d)
+            rb = QtWidgets.QRadioButton(d)
             rb.setAutoExclusive(False)
             rb.clicked.connect(lambda: self.handleSteps(var, v))
             self.steps_changed.connect(lambda: rb.setChecked(getattr(self, var) == v))
@@ -101,33 +101,33 @@ class CNCJogger(QtGui.QGroupBox):
             if v == int(v):
                 return str(int(v))
             return str(v)
-        steps = QtGui.QVBoxLayout()
+        steps = QtWidgets.QVBoxLayout()
         for d in Global.settings.xysteps:
             addButton(steps, 'distxy', "%smm" % fmtfloat(d), d)
         layout.addLayout(steps, 0, 3, 4, 1)
-        speeds = QtGui.QVBoxLayout()
+        speeds = QtWidgets.QVBoxLayout()
         for d in Global.settings.xyspeeds:
             addButton(speeds, 'speedxy', "F%s" % fmtfloat(d) if d is not None else "Rapid", d)
         layout.addLayout(speeds, 0, 4, 4, 1)
 
-        frm = QtGui.QFrame()
-        frm.setFrameStyle(QtGui.QFrame.VLine)
+        frm = QtWidgets.QFrame()
+        frm.setFrameStyle(QtWidgets.QFrame.VLine)
         layout.addWidget(frm, 0, 5, 4, 1)
 
-        steps = QtGui.QVBoxLayout()
+        steps = QtWidgets.QVBoxLayout()
         for d in Global.settings.zsteps:
             addButton(steps, 'distz', "%smm" % fmtfloat(d), d)
         layout.addLayout(steps, 0, 7, 4, 1)
-        speeds = QtGui.QVBoxLayout()
+        speeds = QtWidgets.QVBoxLayout()
         for d in Global.settings.zspeeds:
             addButton(speeds, 'speedz', "F%s" % fmtfloat(d) if d is not None else "Rapid", d)
         layout.addLayout(speeds, 0, 8, 4, 1)
 
         self.steps_changed.emit()
 
-class HistoryLineEdit(QtGui.QLineEdit):
+class HistoryLineEdit(QtWidgets.QLineEdit):
     def __init__(self, history):
-        QtGui.QLineEdit.__init__(self)
+        QtWidgets.QLineEdit.__init__(self)
         self.jogger = None
         self.history = history
         self.history_cursor = 0
@@ -149,15 +149,15 @@ class HistoryLineEdit(QtGui.QLineEdit):
                     self.setText(self.history.getHistoryCmd(self.history_cursor))
                     self.selectAll()
             else:
-                QtGui.QLineEdit.keyPressEvent(self, e)
+                QtWidgets.QLineEdit.keyPressEvent(self, e)
         else:
             if self.jogger and self.jogger.checkKeyPressEvent(e):
                 return
-            QtGui.QLineEdit.keyPressEvent(self, e)
+            QtWidgets.QLineEdit.keyPressEvent(self, e)
 
-class CNCPendant(QtGui.QGroupBox):
+class CNCPendant(QtWidgets.QGroupBox):
     def __init__(self, grbl):
-        QtGui.QWidget.__init__(self)
+        QtWidgets.QWidget.__init__(self)
         self.setTitle("Machine control")
         self.grbl = grbl
         self.initUI()
@@ -174,24 +174,24 @@ class CNCPendant(QtGui.QGroupBox):
         if e.modifiers() & QtCore.Qt.AltModifier:
             if self.jogger.checkKeyPressEvent(e):
                 return
-        return QtGui.QGroupBox.keyPressEvent(self, e)
+        return QtWidgets.QGroupBox.keyPressEvent(self, e)
     def initUI(self):        
-        cmdLayout = QtGui.QHBoxLayout()
-        statusLayout = QtGui.QHBoxLayout()
-        commentLayout = QtGui.QHBoxLayout()
+        cmdLayout = QtWidgets.QHBoxLayout()
+        statusLayout = QtWidgets.QHBoxLayout()
+        commentLayout = QtWidgets.QHBoxLayout()
 
         self.cmdWidget = HistoryLineEdit(self.grbl.history)
         cmdLayout.addWidget(self.cmdWidget)
-        self.cmdButton = QtGui.QPushButton("Send")
+        self.cmdButton = QtWidgets.QPushButton("Send")
         self.cmdButton.clicked.connect(self.sendCommand)
         self.cmdButton.setDefault(True)
         cmdLayout.addWidget(self.cmdButton)
         
-        self.modeWidget = QtGui.QLabel()
+        self.modeWidget = QtWidgets.QLabel()
         self.modeWidget.setFont(Global.fonts.mediumBoldFont)
         statusLayout.addWidget(self.modeWidget)
         def addButton(name, func):
-            b = QtGui.QPushButton(name)
+            b = QtWidgets.QPushButton(name)
             b.clicked.connect(func)
             statusLayout.addWidget(b)
             return b
@@ -200,19 +200,19 @@ class CNCPendant(QtGui.QGroupBox):
         self.resetButton = addButton("Soft Reset", self.onMachineSoftReset)
         self.killAlarmButton = addButton("Kill Alarm", self.onMachineKillAlarm)
         
-        self.commentWidget = QtGui.QLabel("")
+        self.commentWidget = QtWidgets.QLabel("")
         commentLayout.addWidget(self.commentWidget)
-        self.feedSpeedWidget = QtGui.QLabel("")
+        self.feedSpeedWidget = QtWidgets.QLabel("")
         commentLayout.addWidget(self.feedSpeedWidget)
 
         self.workWidgets = {}
         self.machineWidgets = {}
 
-        grid = QtGui.QGridLayout()
+        grid = QtWidgets.QGridLayout()
 
-        layout = QtGui.QFormLayout()
+        layout = QtWidgets.QFormLayout()
         layout.setLabelAlignment(QtCore.Qt.AlignRight)
-        self.tableview = QtGui.QTableView()
+        self.tableview = QtWidgets.QTableView()
         self.tableview.setModel(self.grbl.history)
         self.tableview.setColumnWidth(0, 400)
         self.tableview.setColumnWidth(1, 160)
@@ -230,54 +230,54 @@ class CNCPendant(QtGui.QGroupBox):
         layout.addRow("Last comment:", commentLayout)
         grid.addLayout(layout, 0, 0, 1, 3)
         
-        layout = QtGui.QGridLayout()
+        layout = QtWidgets.QGridLayout()
         layout.setAlignment(QtCore.Qt.AlignTop)
         layout.setColumnMinimumWidth(1, 14 * 6)
         layout.setColumnMinimumWidth(3, 14 * 6)
         alignment = {"|" : QtCore.Qt.AlignHCenter, "<" : QtCore.Qt.AlignLeft, ">" : QtCore.Qt.AlignRight}
         for col, name in enumerate(['|', ">Work", "|Zero", ">Machine"]):
-            label = QtGui.QLabel(name[1:])
+            label = QtWidgets.QLabel(name[1:])
             layout.addWidget(label, 0, col, alignment[name[0]] | QtCore.Qt.AlignTop)
         alignment = QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter
         for index, axis in enumerate(['X', 'Y', 'Z']):
-            label = QtGui.QLabel(axis)
+            label = QtWidgets.QLabel(axis)
             label.setScaledContents(False)
             label.setFont(Global.fonts.bigBoldFont)
             layout.addWidget(label, index + 1, 0, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-            coordWidget = QtGui.QPushButton("-")
+            coordWidget = QtWidgets.QPushButton("-")
             coordWidget.setFlat(True)
             coordWidget.setFont(Global.fonts.bigBoldFont)
             #coordWidget.setAlignment(alignment)
             def mkLocal(axis, coordWidget):
                 def returnPressedFunc():
-                    newValue, ok = QtGui.QInputDialog.getDouble(self, "Reset %s axis" % axis, "New current position", float(coordWidget.text()), -10000, 10000, 2)
+                    newValue, ok = QtWidgets.QInputDialog.getDouble(self, "Reset %s axis" % axis, "New current position", float(coordWidget.text()), -10000, 10000, 2)
                     if ok:
                         self.zeroAxis(axis, newValue)
                 return returnPressedFunc
             coordWidget.clicked.connect(mkLocal(axis, coordWidget))
             layout.addWidget(coordWidget, index + 1, 1, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
             self.workWidgets[axis] = coordWidget
-            zeroWidget = QtGui.QPushButton("0")
+            zeroWidget = QtWidgets.QPushButton("0")
             def q(axis):
                 return lambda: self.zeroAxis(axis)
             zeroWidget.setMaximumWidth(32)
             zeroWidget.clicked.connect(q(axis))
             layout.addWidget(zeroWidget, index + 1, 2)
-            coordWidget = QtGui.QLabel("-")
+            coordWidget = QtWidgets.QLabel("-")
             coordWidget.setFont(Global.fonts.bigFont)
             coordWidget.setAlignment(alignment)
             layout.addWidget(coordWidget, index + 1, 3)
             self.machineWidgets[axis] = coordWidget
-        widget = QtGui.QGroupBox("Coordinates")
+        widget = QtWidgets.QGroupBox("Coordinates")
         widget.setLayout(layout)
         grid.addWidget(widget, 1, 0)
 
         self.jogger = CNCJogger(self.grbl)
         self.cmdWidget.jogger = self.jogger
         grid.addWidget(self.jogger, 1, 2, 1, 1)
-        self.macros = QtGui.QHBoxLayout()
+        self.macros = QtWidgets.QHBoxLayout()
         for name, command in Global.settings.macros:
-            button = QtGui.QPushButton(name)
+            button = QtWidgets.QPushButton(name)
             def q(command):
                 return lambda: self.grbl.sendLine(command)
             button.clicked.connect(q(command))
@@ -389,9 +389,9 @@ class CNCPendant(QtGui.QGroupBox):
     def onMachineHomingCycle(self):
         self.grbl.sendLine('$H')
 
-class CNCJobControl(QtGui.QGroupBox):
+class CNCJobControl(QtWidgets.QGroupBox):
     def __init__(self, grbl):
-        QtGui.QWidget.__init__(self)
+        QtWidgets.QWidget.__init__(self)
         self.setTitle("Job control")
         self.grbl = grbl
         self.jobFile = None
@@ -400,8 +400,8 @@ class CNCJobControl(QtGui.QGroupBox):
         self.initUI()
     def initUI(self):
         self.buttons = {}
-        layout = QtGui.QVBoxLayout()
-        self.jobCommands = QtGui.QTableView()
+        layout = QtWidgets.QVBoxLayout()
+        self.jobCommands = QtWidgets.QTableView()
         self.jobCommands.setModel(GcodeJobModel())
         self.jobCommands.setColumnWidth(0, 320)
         self.jobCommands.setColumnWidth(1, 120)
@@ -414,15 +414,15 @@ class CNCJobControl(QtGui.QGroupBox):
         self.setLayout(layout)
         self.updateButtons()
     def initFileArea(self):
-        area = QtGui.QHBoxLayout()
-        button = QtGui.QPushButton("Load")
+        area = QtWidgets.QHBoxLayout()
+        button = QtWidgets.QPushButton("Load")
         button.clicked.connect(self.onFileOpen)
         self.buttons["Load"] = button
         area.addWidget(button, 0)
-        self.fileLabel = QtGui.QLabel("")
-        self.fileLabel.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Sunken);
+        self.fileLabel = QtWidgets.QLabel("")
+        self.fileLabel.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken);
         area.addWidget(self.fileLabel, 1)
-        button = QtGui.QPushButton("Reload")
+        button = QtWidgets.QPushButton("Reload")
         button.clicked.connect(self.onFileReopen)
         self.buttons["Reload"] = button
         area.addWidget(button, 0)
@@ -436,9 +436,9 @@ class CNCJobControl(QtGui.QGroupBox):
             ('Cancel', self.onJobCancel),
             ('View', self.onJobView),
         ]
-        buttons = QtGui.QHBoxLayout()
+        buttons = QtWidgets.QHBoxLayout()
         for name, func in buttonList:
-            button = QtGui.QPushButton(name)
+            button = QtWidgets.QPushButton(name)
             button.clicked.connect(func)
             buttons.addWidget(button)
             self.buttons[name] = button
@@ -519,9 +519,10 @@ class CNCJobControl(QtGui.QGroupBox):
         if self.jobFile:
             self.loadFile(self.jobFile)
     def onFileOpen(self):
-        #fname = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
-        opendlg = QtGui.QFileDialog(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
-        opendlg.setFileMode(QtGui.QFileDialog.ExistingFile)
+        #fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
+        opendlg = QtWidgets.QFileDialog(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
+        opendlg.setFileMode(QtWidgets.QFileDialog.ExistingFile)
+        opendlg.setOptions(QtWidgets.QFileDialog.DontUseNativeDialog)
         if self.jobFile is not None:
             opendlg.selectFile(self.jobFile)
         mainLayout = opendlg.layout()
@@ -549,9 +550,9 @@ class CNCJobControl(QtGui.QGroupBox):
             if len(fnames) == 1:
                 self.loadFile(fnames[0])
 
-class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
+class CNCMainWindow(QtWidgets.QMainWindow, MenuHelper):
     def __init__(self):
-        QtGui.QMainWindow.__init__(self)
+        QtWidgets.QMainWindow.__init__(self)
         MenuHelper.__init__(self)
         self.grbl = GrblInterface()
         self.initUI()
@@ -580,10 +581,10 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         machineMenu.addSeparator()
         machineMenu.addAction(self.makeAction("&Machine configuration", "Ctrl+M", "Set machine configuration", self.onMachineConfiguration))
         self.updateActions()
-        layout = QtGui.QHBoxLayout()
+        layout = QtWidgets.QHBoxLayout()
         layout.addWidget(self.pendant)
         layout.addWidget(self.jobs)
-        widget = QtGui.QGroupBox()
+        widget = QtWidgets.QGroupBox()
         widget.setLayout(layout)
         self.setCentralWidget(widget)
         self.setWindowTitle("KF's GRBL controller")
@@ -603,6 +604,7 @@ class CNCMainWindow(QtGui.QMainWindow, MenuHelper):
         prefs = AppConfigDialog()
         if prefs.exec_():
             prefs.save()
+        prefs = None
     def disconnect(self):
         self.grbl.disconnectFromGrbl()
         self.grbl.shutdown()
