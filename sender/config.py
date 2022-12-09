@@ -2,7 +2,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 def store_array(qs, name, arr, writer):
     qs.beginWriteArray(name)
-    for i in xrange(len(arr)):
+    for i in range(len(arr)):
         qs.setArrayIndex(i)
         writer(qs, arr[i])
     qs.endArray()
@@ -11,7 +11,7 @@ def restore_array(qs, name, defvalue, reader):
         return defvalue
     data = []
     size = qs.beginReadArray(name)
-    for i in xrange(size):
+    for i in range(size):
         qs.setArrayIndex(i)
         data.append(reader(qs))
     qs.endArray()
@@ -37,7 +37,8 @@ class Settings:
             return float(v) if v is not None else None
         def restoremacro(qs):
             return (str(qs.value("name")), str(qs.value("command")))
-        self.device = str(qs.value("serial/device", None))
+        deviceStr = qs.value("serial/device", None)
+        self.device = str(deviceStr) if deviceStr is not None else None
         if self.device == "":
             self.device = None
         self.speed = int(qs.value("serial/speed", 115200))

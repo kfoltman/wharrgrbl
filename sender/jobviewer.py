@@ -3,7 +3,7 @@ import os
 import time
 from PyQt5 import QtCore, QtGui, QtWidgets
 from helpers.gparser import *
-from config import Global
+from .config import Global
 
 class PreviewBase(QtWidgets.QWidget):
     pointerCoords = QtCore.pyqtSignal([float, float])

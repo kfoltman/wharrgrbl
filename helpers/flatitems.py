@@ -3,6 +3,7 @@ import collections
 from helpers.geom import *
 from PyQt5.QtGui import *
 import sys
+from functools import reduce
 
 # Extend the bounds to account for numerical errors
 boundsMargin = 0.01
@@ -140,7 +141,7 @@ class DrawingArc(DrawingItem):
             if abs(dsin) > eps and abs(p1.y() - p2.y()) > eps:
                 r = (p2.y() - p1.y()) / dsin
             else:
-                print "No solution exists - bad slopes"
+                print("No solution exists - bad slopes")
                 return # no solution
         if r < 0:
             r = -r
@@ -149,21 +150,21 @@ class DrawingArc(DrawingItem):
         c1 = circ(p1, -r, alpha)
         c2 = circ(p2, -r, beta)
         if pdist(c1, c2) > eps:
-            print "No solution exists - too far away - %f" % pdist(c1, c2)
+            print("No solution exists - too far away - %f" % pdist(c1, c2))
             return # No solution exists
         c = interp(c1, c2, 0.5)
         xc, yc = c.x(), c.y()
         if abs(pdist(QPointF(xc, yc), p1) - abs(r)) > eps:
-            print "Centre point is not at r distance to p1", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), dcos, pdist(QPointF(xc, yc), p1)
+            print("Centre point is not at r distance to p1", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), dcos, pdist(QPointF(xc, yc), p1))
             assert False
         if abs(pdist(QPointF(xc, yc), p2) - abs(r)) > eps:
-            print "Centre point is not at r distance to p2", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), dcos, pdist(QPointF(xc, yc), p2)
+            print("Centre point is not at r distance to p2", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), dcos, pdist(QPointF(xc, yc), p2))
             assert False
         if pdist(circ4(xc, yc, r, alpha), p1) > eps:
-            print "Incorrect calculated p1", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), pdist(circ4(xc, yc, r, alpha), p1)
+            print("Incorrect calculated p1", p1, p2, xc, yc, r, r2d(alpha), r2d(beta), pdist(circ4(xc, yc, r, alpha), p1))
             assert False
         if pdist(circ4(xc, yc, r, beta), p2) > eps:
-            print "Incorrect calculated p2", p1, p2, xc, yc, r, r2d(alpha), r2d(beta)
+            print("Incorrect calculated p2", p1, p2, xc, yc, r, r2d(alpha), r2d(beta))
             assert False
         #return DrawingArc(QPointF(xc, yc), r, beta, -nangle(beta - alpha))
         return DrawingArc(QPointF(xc, yc), r, alpha, nangle(beta - alpha))
@@ -287,7 +288,7 @@ def findOrientation(nodes):
             if abs(la) < math.pi * 0.9999:
                 angle += la
     if abs(angle) < 1.99 * math.pi:
-        print "Not a closed shape ? %f" % (angle * 180 / math.pi)
+        print("Not a closed shape ? %f" % (angle * 180 / math.pi))
         if False:
             for i in range(len(nodes)):
                 if type(nodes[i]) is DrawingArc:
@@ -295,15 +296,15 @@ def findOrientation(nodes):
                     da += nangle((nodes[(i + 1) % len(nodes)].startAngle - nodes[i].endAngle))
                 else:
                     da = (nodes[(i + 1) % len(nodes)].startAngle - nodes[i].startAngle)
-                print nodes[i], "%0.3f" % (da * 180 / math.pi)
+                print(nodes[i], "%0.3f" % (da * 180 / math.pi))
         if abs(angle) < defaultEps:
             return 0
     if angle < 0:
         return -1
-        print "Shape to the right"
+        print("Shape to the right")
     else:
         return +1
-        print "Shape to the left"
+        print("Shape to the left")
     return 0
 
 def reversed_nodes(nodes):
@@ -348,7 +349,7 @@ def intersections(d1, d2):
         if dist > d1.radius + d2.radius or dist == 0:
             return []
         if dist < defaultEps:
-            print "Warning: concentric circles %f %f" % (d1.radius, d2.radius)
+            print("Warning: concentric circles %f %f" % (d1.radius, d2.radius))
         along = (d1.radius ** 2 - d2.radius ** 2 + dist ** 2) / (2.0 * dist)
         across2 = d1.radius ** 2 - along ** 2
         if across2 < 0:
@@ -405,7 +406,7 @@ def eliminateCrossings(nodes):
     events = []
     splitpoints = {}
     if traceOffsetCode:
-        print "Find intersections"
+        print("Find intersections")
     for n in nodes:
         if type(n) is DrawingLine:
             splitpoints[n] = []
@@ -491,7 +492,7 @@ def removeLoops(nodes2):
     points = {}
     nodes3 = []
     if traceOffsetCode:
-        print "Count windings (%d, %d)" % (len(nodes2), len(splitpoints2))
+        print("Count windings (%d, %d)" % (len(nodes2), len(splitpoints2)))
     windings = None
     ichecks = 0
     inochecks = 0
@@ -531,7 +532,7 @@ def removeLoops(nodes2):
             nodes3.append(n)
         #nodes3.append(n)
     if traceOffsetCode:
-        print ichecks, inochecks
+        print(ichecks, inochecks)
     return nodes3
 
 def removeReversals(nodes):
@@ -542,7 +543,7 @@ def removeReversals(nodes):
         if type(n1) is DrawingLine and type(n2) is DrawingLine:
             angle = n1.toLine().angleTo(n2.toLine())
             if abs(angle - 180) < defaultEps:
-                print "Removing reversal"
+                print("Removing reversal")
                 nodes[i] = DrawingLine(n1.start, n2.end)
                 del nodes[i + 1]
                 i = 0
@@ -581,7 +582,7 @@ def runGluTesselator(nodes):
             vertex = vertexes.pop()
         shapes[-1].append(vertex)
     def error(args):
-        print "error", args
+        print("error", args)
     def combine(coords, vertex_data, weight, theTuple):
         vertexes.append(coords)
         return coords
@@ -630,7 +631,7 @@ def plugSmallGaps(nodes):
     for n in nodes:
         dist = pdist(n.start, last.end)
         if dist > defaultEps:
-            print "Warning: points too far away (%f)" % dist
+            print("Warning: points too far away (%f)" % dist)
         if dist > 0:
             if type(n) is DrawingLine:
                 res.append(DrawingLine(last.end, n.end))
@@ -709,14 +710,14 @@ def removeLoops2old(nodes):
         vertexes[s].addEdge(n, e, False)
         vertexes[e].addEdge(n, s, True)
     # XXXKF remove overlapping opposite edges
-    for v in vertexes.values():
+    for v in list(vertexes.values()):
         v.sort()
     order = sorted(vertexes.keys())
     workset = {}
     shapes = []
     for i, v in enumerate(order):
         ve = vertexes[v]
-        print i, ve,
+        print(i, ve, end=' ')
         vstack = []
         for etype, edge, incoming, other in ve.events:
             if etype == 'S':
@@ -733,8 +734,8 @@ def removeLoops2old(nodes):
                 if len(vstack) == 2:
                     vstack[0].edges += reversed(vstack[1].edges)
                     del vstack[1]
-            print "%s%s%s" % (etype, "i" if incoming else "o", other),
-        print len(vstack)
+            print("%s%s%s" % (etype, "i" if incoming else "o", other), end=' ')
+        print(len(vstack))
         while len(vstack) >= 1:
             shapes.append(vstack[0].edges)
             vstack = vstack[1:]
@@ -779,7 +780,7 @@ def removeLoops2(nodes):
             vertexes[e].addEdge(n, s, True)
             del weights[(s, e)]
             del weights[(e, s)]
-    for v in vertexes.values():
+    for v in list(vertexes.values()):
         v.sort()
         vp = treat(v.x, v.y)
         wc = 0
@@ -874,8 +875,8 @@ def offset(nodes, r):
     rd = r / abs(r)
     sp = s > 0
     if traceOffsetCode:
-        print "Offset parts"
-    for i in xrange(len(nodes)):
+        print("Offset parts")
+    for i in range(len(nodes)):
         prev = nodes[(i - 1) % len(nodes)]
         this = nodes[i]
         next = nodes[(i + 1) % len(nodes)]
@@ -910,10 +911,10 @@ def offset(nodes, r):
                 newl.orig_start = this.start
                 nodes2.append(newl)
     if traceOffsetCode:
-        print "Add missing segments"
+        print("Add missing segments")
     nodes = list(nodes2)
     nodes2 = []
-    for i in xrange(len(nodes)):
+    for i in range(len(nodes)):
         prev = nodes[(i - 1) % len(nodes)]
         this = nodes[i]
         if pdist(this.start, prev.end) > 0.0001:
@@ -931,7 +932,7 @@ def offset(nodes, r):
                 nodes2.append(DrawingLine(this.orig_start, this.start))
         nodes2.append(this)
     if traceOffsetCode:
-        print "Remove loops"
+        print("Remove loops")
     #nodes2 = removeReversals(nodes2)
 
     # Bugs:

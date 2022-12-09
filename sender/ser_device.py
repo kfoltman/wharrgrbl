@@ -16,35 +16,33 @@ class SerialDeviceFinder:
                 else:
                     self.devices.append((fn, os.path.basename(fn)))
         if os.name == 'nt':
-            import _winreg
+            import winreg
             try:
-                key = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'HARDWARE\\DEVICEMAP\\SERIALCOMM')
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 'HARDWARE\\DEVICEMAP\\SERIALCOMM')
                 while True:
                     try:
-                        dev = _winreg.EnumValue(key, len(self.devices))
+                        dev = winreg.EnumValue(key, len(self.devices))
                     except:
                         break
                     devdesc, devname, _ = dev
                     self.devices.append((str(devname), str(devdesc)))
             except:
                 pass
-        print self.devices
         
 class ReaderBase:
     def writeln(self, data):
         self.write(data + "\n")
     def poll(self):
-        try:
-            buf = self.read(1024)
-        except:
+        buf = self.read(1024)
+        if buf is None:
             return None
         self.data += buf
         while True:
-            pos = self.data.find('\n')
+            pos = self.data.find(b'\n')
             if pos != -1:
                 line = self.data[0:pos]
                 self.data = self.data[pos + 1:]
-                if line.endswith('\r'):
+                if line.endswith(b'\r'):
                     line = line[:-1]
                 return line
             else:
@@ -55,7 +53,9 @@ class SocketReader(ReaderBase):
         host, port = addr.split(":")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, int(port)))
-        self.data = ''
+        self.data = b''
+    def is_open(self):
+        return True
     def write(self, data):
         return self.socket.send(data)
     def read(self, nbytes):
@@ -72,7 +72,9 @@ class SerialLineReader(ReaderBase):
         if device is None or device[0:1] == '=':
             finder = SerialDeviceFinder()
             if len(finder.devices) == 0:
-                raise Exception, "No serial devices found"
+                self.ser = None
+                self.data = b''
+                return
             if device is None:
                 device = finder.devices[-1][0]
             else:
@@ -81,19 +83,20 @@ class SerialLineReader(ReaderBase):
                 if len(matched) == 0:
                     matched = [name for name, description in sorted(finder.devices) if m.search(description)]
                     if len(matched) == 0:
-                        raise Exception, "No serial devices found matching pattern %s" % device[1:]
+                        raise Exception("No serial devices found matching pattern %s" % device[1:])
                 device = matched[0]
-        self.ser = serial.Serial(device, speed, timeout=0.01)
-        self.data = ''
+        try:
+            self.ser = serial.Serial(device, speed, timeout=0.01)
+        except serial.SerialException as e:
+            self.ser = None
+        self.data = b''
+    def is_open(self):
+        return self.ser is not None
     def write(self, data):
         self.ser.write(data)
         #self.ser.flush()
     def read(self, nbytes):
-        try:
-            buf = self.ser.read(nbytes)
-            return buf
-        except:
-            return None
+        return self.ser.read(nbytes)
     def close(self):
         if self.ser is not None:
             self.ser.close()

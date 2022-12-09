@@ -1,6 +1,6 @@
 import math
 import sys
-from gcode import GcodeOutput
+from .gcode import GcodeOutput
 from PyQt5 import QtCore, QtGui
 
 def addvec(v1, v2):
@@ -33,14 +33,14 @@ class BoardSizer(object):
         self.minpt = None
         self.maxpt = None
         if self.board is not None:
-            for l in self.board.layers.values():
+            for l in list(self.board.layers.values()):
                 for seg in l.segments:
                     self.addPointToBB(seg.start)
                     self.addPointToBB(seg.end)
                 for seg in l.gr_lines:
                     self.addPointToBB(seg.start)
                     self.addPointToBB(seg.end)
-                for net, polygons in l.polygons.items():
+                for net, polygons in list(l.polygons.items()):
                     for p in polygons:
                         for pt in p:
                             self.addPointToBB(pt)
@@ -127,7 +127,7 @@ class PathGenerator(object):
         #pen.setWidth(0)
         #qp.setPen(pen)
         #qp.setBrush(QtGui.QColor(200, 0, 0))
-        for net, polygons in layer.polygons.items():
+        for net, polygons in list(layer.polygons.items()):
             for p in polygons:
                 path = QtGui.QPainterPath()
                 path.setFillRule(1)
@@ -150,7 +150,7 @@ class PathGenerator(object):
             stroker = QtGui.QPainterPathStroker()
             stroker.setWidth(self.view.scale * self.milling_params.tool_width)
             allpathlist = []
-            for p in paths.values():
+            for p in list(paths.values()):
                 ps = p.united(stroker.createStroke(p))
                 allpathlist.append(ps)
             while len(allpathlist) > 1:
@@ -193,8 +193,8 @@ def optimize_paths(paths):
         mindist2 = (pt[0] - lastpt[0])**2 + (pt[1] - lastpt[1])**2
         minp = 0
         minpt = 0
-        for p in xrange(len(paths)):
-            for ptidx in xrange(0, len(paths[p])):
+        for p in range(len(paths)):
+            for ptidx in range(0, len(paths[p])):
                 pt = paths[p][ptidx]
                 dist2 = (pt[0] - lastpt[0])**2 + (pt[1] - lastpt[1])**2
                 if dist2 < mindist2:
@@ -326,7 +326,7 @@ def calign(pt, cx, cy, r):
 
 def path_to_optimized_gcode(gc, points):
     guesses = []
-    for i in xrange(len(points)):
+    for i in range(len(points)):
         if i + 2 >= len(points):
             guesses.append(None)
             continue
@@ -379,7 +379,7 @@ def mill_contours(gc, board, layer, milling_params):
     pp = PathGenerator(view, milling_params)
     paths, drills = pp.generatePathsForLayer(layer)
     pathlist = []
-    for net, path in paths.items():
+    for net, path in list(paths.items()):
         for poly in path.simplified().toSubpathPolygons():
             pts = []
             for pt in poly:

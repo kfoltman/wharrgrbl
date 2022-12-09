@@ -2,10 +2,10 @@ import math
 import sys
 sys.path += ['.']
 from PyQt5 import QtCore, QtGui, QtWidgets
-from cam.rdkic import *
-from helpers.preview import PathPreview
-from cam.mill import *
-from helpers.gui import MenuHelper
+from .cam.rdkic import *
+from .helpers.preview import PathPreview
+from .cam.mill import *
+from .helpers.gui import MenuHelper
 
 class CAMApplication(QtWidgets.QApplication):
     pass

@@ -5,7 +5,7 @@ import os.path
 import re
 import sys
 import time
-from ser_device import *
+from .ser_device import *
 
 class GrblVersion(object):
     def __init__(self, name):
@@ -20,10 +20,10 @@ class GrblClassicVersion(GrblVersion):
             cooked = {}
             for kw, value in re.findall(r'([A-Za-z]+):([0-9.,-]+)', params):
                 value = value.rstrip(',')
-                cooked[kw] = map(float, value.split(","))
+                cooked[kw] = list(map(float, value.split(",")))
             parent.process_cooked_status(status, cooked)
         else:
-            raise ValueError, "Malformed status: %s" % response
+            raise ValueError("Malformed status: %s" % response)
     def parse_error(self, inp):
         return inp[7:]
     def parse_variable_value(self, inp):
@@ -50,7 +50,7 @@ class GrblModernVersion(GrblVersion):
         }
         with open("grbl_csv/setting_codes_en_US.csv", "r") as cfg_csv:
             reader = csv.reader(cfg_csv)
-            reader.next()
+            next(reader)
             for row in reader:
                 self.config_legend[int(row[0])] = "%s (%s): %s" % tuple(row[1:])
         self.alarms = {
@@ -108,7 +108,7 @@ class GrblModernVersion(GrblVersion):
                 if kw == 'A' or kw == 'Pn':
                     cooked[kw] = value
                 else:
-                    cooked[kw] = map(float, value.split(","))
+                    cooked[kw] = list(map(float, value.split(",")))
             if ':' in status:
                 status, substatus = status.split(":", 1)
                 cooked['Substatus'] = substatus
@@ -117,12 +117,12 @@ class GrblModernVersion(GrblVersion):
                 self.wco = cooked['WCO']
                 del cooked['WCO']
             if 'MPos' in cooked and 'WPos' not in cooked:
-                cooked['WPos'] = [cooked['MPos'][i] - self.wco[i] for i in xrange(3)]
+                cooked['WPos'] = [cooked['MPos'][i] - self.wco[i] for i in range(3)]
             if 'WPos' in cooked and 'MPos' not in cooked:
-                cooked['MPos'] = [cooked['WPos'][i] + self.wco[i] for i in xrange(3)]
+                cooked['MPos'] = [cooked['WPos'][i] + self.wco[i] for i in range(3)]
             parent.process_cooked_status(status, cooked)
         else:
-            raise ValueError, "Malformed status: %s" % response
+            raise ValueError("Malformed status: %s" % response)
     def parse_variable_value(self, inp):
         var, value = inp.split('=', 1)
         if var[0] == '$':
@@ -155,20 +155,33 @@ def create_grbl_version(version):
     else:
         return GrblClassicVersion(version)
 
-class GrblStateMachine:
-    def __init__(self, *args, **kwargs):
+class GrblStateMachine(object):
+    def open(self, *args, **kwargs):
         if os.getenv("TCPGRBL"):
             self.reader = SocketReader(os.getenv("TCPGRBL"))
             # do a soft reset just in case of weird state
         else:
             self.reader = SerialLineReader(*args, **kwargs)
-        self.reader.write('\x18')
         self.position_queries = 0
         self.last_status = 0
         self.last_cmd = None
         self.outqueue = []
         self.version = None
-        self.wait_for_banner(True)
+        if self.reader.is_open():
+            self.write(b'\x18')
+            self.wait_for_banner(True)
+        else:
+            self.no_serial_device()
+    def no_serial_device(self):
+        self.banner_time = time.time()
+        self.sent_status_request = False
+        self.maxbytes = 0
+        self.process_cooked_status('Disconnected', {})        
+    def disconnected(self, error):
+        self.banner_time = time.time()
+        self.sent_status_request = False
+        self.maxbytes = 0
+        self.process_cooked_status('Disconnected', {})        
     def wait_for_banner(self, first):
         self.banner_time = time.time()
         self.sent_status_request = False
@@ -181,9 +194,9 @@ class GrblStateMachine:
         while sum(map((lambda lineandcontext: len(lineandcontext[0])), self.outqueue)) + len(self.outqueue) + len(line) + 1 > self.maxbytes:
             if not self.handle_input():
                 return "Device busy"
-        print "Sending: %s" % line
+        print("Sending: %s" % line)
         self.outqueue.append((line, context))
-        self.reader.writeln(line)
+        self.writeln(line)
     def handle_line(self, inp):
         if self.banner_time is not None:
             if inp.startswith("Grbl "):
@@ -194,14 +207,14 @@ class GrblStateMachine:
                     self.outqueue[:] = []
                     self.position_queries = 0
                 else:
-                    print "(ignore line garbage %s, banner time = %s)" % (inp, self.banner_time)
+                    print("(ignore line garbage %s, banner time = %s)" % (inp, self.banner_time))
             else:
                 if inp != '':
-                    print "(ignore line garbage %s, banner time = %s)" % (inp, self.banner_time)
+                    print("(ignore line garbage %s, banner time = %s)" % (inp, self.banner_time))
                 # ignore line garbage
             return True
         if not self.version:
-            print "No version set - ignoring %s" % repr(inp)
+            print("No version set - ignoring %s" % repr(inp))
             return
         if inp.startswith('<') and inp.endswith('>'):
             self.position_queries -= 1
@@ -209,21 +222,21 @@ class GrblStateMachine:
             return True
         if inp[0:6] == 'ALARM:':
             msg = self.version.parse_alarm(inp)
-            print "Outqueue = %s, last_cmd = %s" % (repr(self.outqueue), repr(self.last_cmd))
+            print("Outqueue = %s, last_cmd = %s" % (repr(self.outqueue), repr(self.last_cmd)))
             if len(self.outqueue):
                 self.alarm(self.outqueue[0][0], self.outqueue[0][1], msg)
             else:
                 self.alarm(self.last_cmd[0], self.last_cmd[1], msg)
             return True
         if inp.startswith('error:'):
-            print "Error Pop: %s, %s" % (self.outqueue[0], inp)
+            print("Error Pop: %s, %s" % (self.outqueue[0], inp))
             self.error(self.outqueue[0][0], self.outqueue[0][1], self.version.parse_error(inp))
             self.outqueue.pop(0)
             return True
         if inp == '':
             return True
         if inp == 'ok':
-            print "Pop: %s" % (self.outqueue[0], )
+            print("Pop: %s" % (self.outqueue[0], ))
             self.confirm(*self.outqueue[0])
             self.last_cmd = self.outqueue.pop(0)
             return True
@@ -243,14 +256,20 @@ class GrblStateMachine:
             var, value, comment = self.version.parse_variable_value(inp)
             self.handle_variable_value(var, value, comment)
             return True
-        raise ValueError, "Unexpected input: %s" % inp
+        raise ValueError("Unexpected input: %s" % inp)
     def handle_input(self):
-        inp = self.reader.poll()
+        if not self.reader.is_open():
+            return False
+        try:
+            inp = self.reader.poll()
+        except Exception as e:
+            self.disconnected(str(e))
+            return
         if inp is not None:
-            return self.handle_line(inp)
+            return self.handle_line(inp.decode())
         if self.banner_time is None:
             if len(self.outqueue):
-                print "Unconfirmed: %s" % self.outqueue
+                print("Unconfirmed: %s" % self.outqueue)
             return False
         dtime = time.time() - self.banner_time
         if not self.sent_status_request:
@@ -261,11 +280,11 @@ class GrblStateMachine:
             self.process_cooked_status('Connect Timeout', {})
         return False
     def handle_variable_value(self, var, value, comment):
-        print "%s -> %s (%s)" % (var, value, comment)
+        print("%s -> %s (%s)" % (var, value, comment))
     def handle_gcode_parameter(self, par, values):
-        print "%s -> %s" % (par, values)
+        print("%s -> %s" % (par, values))
     def handle_gcode_state(self, values):
-        print "%s" % (", ".join(values))
+        print("%s" % (", ".join(values)))
 
     def flush(self):
         while len(outqueue):
@@ -275,12 +294,13 @@ class GrblStateMachine:
     def confirm(self, line, context):
         pass
     def alarm(self, line, context, message):
-        print "Alarm pop: %s - %s" % (line, message)
+        print("Alarm pop: %s - %s" % (line, message))
     def process_cooked_status(self, status, params):
-        print status, params
+        print(status, params)
     def ask_for_status(self):
-        self.position_queries += 1
-        self.reader.write('?')
+        if self.reader.is_open():
+            self.position_queries += 1
+            self.write(b'?')
     def ask_for_status_if_idle(self):
         if self.position_queries > 0 and time.time() > self.last_status + 1:
             self.position_queries -= 1
@@ -289,39 +309,48 @@ class GrblStateMachine:
         if self.banner_time is None and (self.position_queries <= 0):
             self.position_queries = 0
             self.ask_for_status()
+    def writeln(self, data):
+        assert not isinstance(data, bytes)
+        self.write(data.encode() + b'\n')
+    def write(self, data):
+        assert isinstance(data, bytes)
+        try:
+            self.reader.write(data)
+        except Exception as e:
+            self.disconnected(str(e))
     def feed_reset(self):
-        self.reader.write('\x90')
+        self.write(b'\x90')
     def feed_add10(self):
-        self.reader.write('\x91')
+        self.write(b'\x91')
     def feed_sub10(self):
-        self.reader.write('\x92')
+        self.write(b'\x92')
     def feed_add1(self):
-        self.reader.write('\x93')
+        self.write(b'\x93')
     def feed_sub1(self):
-        self.reader.write('\x94')
+        self.write(b'\x94')
     def rapid_100(self):
-        self.reader.write('\x95')
+        self.write(b'\x95')
     def rapid_50(self):
-        self.reader.write('\x96')
+        self.write(b'\x96')
     def rapid_25(self):
-        self.reader.write('\x97')
+        self.write(b'\x97')
     def safety(self):
-        self.reader.write('\x84')
+        self.write(b'\x84')
     def toggle_spindle_stop(self):
-        self.reader.write('\x9E')
+        self.write(b'\x9E')
     def toggle_flood(self):
-        self.reader.write('\xA0')
+        self.write(b'\xA0')
     def toggle_mist(self):
         # Note: disabled by default
-        self.reader.write('\xA1')
+        self.write(b'\xA1')
     def cancel_jog(self):
-        self.reader.write('\x85')
+        self.write(b'\x85')
     def pause(self):
-        self.reader.write('!')
+        self.write(b'!')
     def restart(self):
-        self.reader.write('~')
+        self.write(b'~')
     def soft_reset(self):
-        self.reader.write('\x18')
+        self.write(b'\x18')
         self.wait_for_banner(False)
     def close(self):
         self.reader.close()
@@ -335,4 +364,4 @@ if __name__ == '__main__':
     for line in f:
         sm.send_line(line)
 
-    print "Total time elapsed: %0.2s" % (time.time() - t)
+    print("Total time elapsed: %0.2s" % (time.time() - t))

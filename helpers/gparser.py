@@ -54,9 +54,9 @@ class TestGcodeReceiver(object):
         self.isMetric = cmd.name == "Metric"
     def handlePlaneCommand(self, cmd, data):
         if cmd.name != "PlaneXY":
-            raise Exception, "Plane not XY"
+            raise Exception("Plane not XY")
     def handleDwellCommand(self, cmd, data):
-        print "Dwell: %s seconds" % data.get('P', 0)
+        print("Dwell: %s seconds" % data.get('P', 0))
     def handleMotionCommand(self, cmd, data):
         x = data.get('X', 0 if self.isRelative else self.x)
         y = data.get('Y', 0 if self.isRelative else self.y)
@@ -109,7 +109,7 @@ class GcodeCommand(object):
         return "%s('%s')" % (self.__class__.__name__, self.name)
     def as_gcode(self, data):
         if self.gcode is None:
-            raise Exception, "Unimplemented as_gcode for %s" % self.name
+            raise Exception("Unimplemented as_gcode for %s" % self.name)
         return self.gcode
     def get_family(self):
         return self.__class__.__name__
@@ -121,7 +121,7 @@ class GcodeCommand(object):
             if hasattr(receiver, "handleRest"):
                 receiver.handleRest(self, data)
             else:
-                print "Executing unimplemented %s" % self.name
+                print("Executing unimplemented %s" % self.name)
         
 class FeedCommand(GcodeCommand):
     def __init__(self, feed):
@@ -290,11 +290,11 @@ class GcodeState(object):
                     self.sticky_state[cname] = words[cname]
 
 if __name__ == "__main__":
-    lines = map(str.strip, open(sys.argv[1], "r").readlines())
+    lines = list(map(str.strip, open(sys.argv[1], "r").readlines()))
 
     rec = RewriteGcodeReceiver()
     gs = GcodeState(rec)
     for l in lines:
         rec.cmds = []
         gs.handle_line(l)
-        print " ".join(rec.cmds)
+        print(" ".join(rec.cmds))

@@ -3,6 +3,7 @@ import re
 import sys
 import time
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 from sender import sender
 from helpers.gui import MenuHelper
 from sender.jobviewer import *
@@ -313,7 +314,7 @@ class CNCPendant(QtWidgets.QGroupBox):
         self.resetButton.setEnabled(isConnected and mode != "Alarm")
         self.killAlarmButton.setEnabled(isConnected and mode == "Alarm")
         self.cmdButton.setEnabled(canAcceptCommands)
-        for w in self.workWidgets.values():
+        for w in list(self.workWidgets.values()):
             w.setEnabled(mode == "Idle")
         for i in range(self.macros.count()):
             self.macros.itemAt(i).widget().setEnabled(canAcceptCommands)
@@ -373,7 +374,7 @@ class CNCPendant(QtWidgets.QGroupBox):
     def onStatus(self):
         self.updateStatusWidgets(*self.grbl.getStatus())
     def onLineReceived(self, line):
-        print "Received:", line
+        print(("Received:", line))
     def onMachineHome(self):
         self.grbl.sendLine('G28')
     def onMachineFeedHold(self):
@@ -463,7 +464,7 @@ class CNCJobControl(QtWidgets.QGroupBox):
             self.jobCommands.resizeRowsToContents()
         else:
             # Do the second best thing - resize first 500 rows
-            for i in xrange(1, 500):
+            for i in range(1, 500):
                 self.jobCommands.resizeRowToContents(i)
         self.updateButtons()
     def loadFile(self, fname):
@@ -520,7 +521,7 @@ class CNCJobControl(QtWidgets.QGroupBox):
             self.loadFile(self.jobFile)
     def onFileOpen(self):
         #fname = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
-        opendlg = QtWidgets.QFileDialog(self, 'Open file', '.', "Gcode files (*.nc *.gcode)")
+        opendlg = QtWidgets.QFileDialog(self, 'Open file', '.', "Gcode files (*.nc *.gcode *.ngc)")
         opendlg.setFileMode(QtWidgets.QFileDialog.ExistingFile)
         opendlg.setOptions(QtWidgets.QFileDialog.DontUseNativeDialog)
         if self.jobFile is not None:
@@ -602,12 +603,18 @@ class CNCMainWindow(QtWidgets.QMainWindow, MenuHelper):
         self.configDialog.show()
     def onFilePreferences(self):
         prefs = AppConfigDialog()
+        oldDevice = Global.settings.device
         if prefs.exec_():
             prefs.save()
+            if Global.settings.device != oldDevice:
+                self.reconnect()
         prefs = None
     def disconnect(self):
         self.grbl.disconnectFromGrbl()
         self.grbl.shutdown()
+    def reconnect(self):
+        self.grbl.disconnectFromGrbl()
+        self.grbl.connectToGrbl()
 
 def main():    
     app = CNCApplication(sys.argv)

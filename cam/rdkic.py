@@ -131,7 +131,7 @@ class KicadBoard(object):
                                     else:
                                         drilly = float(pat[3])
                             elif sym == 'layers':
-                                layers = map(sym2str, pat[1:])
+                                layers = list(map(sym2str, pat[1:]))
                             elif sym == 'net':
                                 net = pat[1]
                         if padangle in [90, 270]:
@@ -151,7 +151,7 @@ class KicadBoard(object):
                         pts = []
                         for xy in si[1][1:]:
                             if sym2str(xy[0]) != 'xy':
-                                raise ValueError, "Invalid item inside filled_polygon"
+                                raise ValueError("Invalid item inside filled_polygon")
                             pts.append((float(xy[1]), float(xy[2])))
                         lp = self.get_layer(layer).polygons
                         if net not in lp:

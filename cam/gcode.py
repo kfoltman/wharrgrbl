@@ -158,7 +158,7 @@ def mill_shape(gc, p, tool):
         for poly in p.geoms:
             milled = milled.union(mill_shape(gc, poly, tool))
     else:
-        raise ValueError, "Unsupported type"
+        raise ValueError("Unsupported type")
     return milled
 
 def mill_poly(gc, p, tool):
@@ -217,7 +217,7 @@ def get_ring_or_line(shape, is_last):
         return get_ring_or_line(shape.exterior, is_last)
     if type(self.shape) is GeometryCollection:
         return get_ring_or_line(shape.geoms[-1 if is_last else 0], is_last)
-    raise ValueError, "Cannot determine first/last ring of type " % type(self.shape)
+    raise ValueError("Cannot determine first/last ring of type " % type(self.shape))
     
 def find_material_and_tool(gc, material, tool):
     return material if material is not None else gc.material, tool if tool is not None else gc.tool
@@ -263,7 +263,7 @@ class ProfileCut(BaseCut):
         material, tool = find_material_and_tool(gc, material, tool)
         p = self.shape.buffer(self.tool_location * tool / 2.0).exterior
         if p is None:
-            raise ValueError, "Cannot mill the shape with tool diameter %f" % tool
+            raise ValueError("Cannot mill the shape with tool diameter %f" % tool)
         layerbylayer2(gc, lambda gc: mill_ring(gc, p), material.layer_depth, self.get_final_depth(material), self.get_init_depth(material))
 
 class PocketingCut(BaseCut):
@@ -302,7 +302,7 @@ class CutSequence:
             mindist2 = pt.distance(lastpt)
             minp = 0
             minpt = 0
-            for p in xrange(len(oldcuts)):
+            for p in range(len(oldcuts)):
                 dist2 = oldcuts[p].get_start().distance(lastpt)
                 if dist2 < mindist2:
                     mindist2 = dist2

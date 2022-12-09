@@ -1,4 +1,4 @@
-from tool import *
+from .tool import *
 from helpers.flatitems import *
 
 class ShapeDirection:
@@ -140,7 +140,7 @@ class StandardModelIterator:
         self.itemFn = itemFn
     def __iter__(self):
         return self
-    def next(self):
+    def __next__(self):
         if self.i < self.model.rowCount():
             self.i += 1
             if self.itemFn:
@@ -158,7 +158,7 @@ class CAMOperationsModel(QStandardItemModel):
         self.appendRow(CAMOperationItem(op))
         return self.index(nrows, 0)
     def delOperations(self, fn):
-        for i in xrange(self.rowCount() - 1, -1, -1):
+        for i in range(self.rowCount() - 1, -1, -1):
             if fn(self.item(i).operation):
                 self.removeRow(i)
     def __iter__(self):

@@ -32,10 +32,10 @@ class PathPreview(QtWidgets.QWidget):
         pt = e.localPos()
         if not self.dragging:
             self.highlight_net = None
-            for net, path in self.paths.items():
+            for net, path in list(self.paths.items()):
                 if path.contains(pt):
                     self.highlight_net = net
-                    print "Highlight %s" % net
+                    print("Highlight %s" % net)
             self.repaint()
         
     def mouseMoveEvent(self, e):
@@ -99,7 +99,7 @@ class PathPreview(QtWidgets.QWidget):
         highlight_brush = QtGui.QBrush(QtGui.QColor(255, 255, 192))
         #qp.setBrush(QtGui.QColor(150, 150, 110))
         #qp.setBrush(QtGui.QColor(255, 0, 0))
-        for net, path in self.paths.items():
+        for net, path in list(self.paths.items()):
             if net == self.highlight_net:
                 qp.setPen(pen)
                 qp.setBrush(highlight_brush)

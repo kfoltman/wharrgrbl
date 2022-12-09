@@ -168,7 +168,7 @@ class PropertySheetWidget(QTableWidget):
                         prop.setData(o, value)
                         changed.append(o)
             except Exception as e:
-                print e
+                print(e)
             finally:
                 self.refreshRow(row)
             self.propertyChanged.emit(changed)
@@ -197,7 +197,7 @@ class PropertySheetWidget(QTableWidget):
     def setObjects(self, objects):
         self.objects = objects
         self.setEnabled(len(self.objects) > 0)
-        for i in xrange(len(self.properties)):
+        for i in range(len(self.properties)):
             self.refreshRow(i)
 
 class PropertyDialog(QDialog):
@@ -222,5 +222,5 @@ class PropertyDialog(QDialog):
         buttons.addWidget(pb)
         self.layout().addLayout(buttons)
     def rollback(self):
-        for k, v in self.origValues.items():
+        for k, v in list(self.origValues.items()):
             setattr(self.subject, k, v)

@@ -1,16 +1,18 @@
 from PyQt5 import QtCore, QtGui
 import re
-import sender
+from . import sender
 import time
-from config import *
-from config_window import *
-from cmdlist import *
+import traceback
+from .config import *
+from .config_window import *
+from .cmdlist import *
 
 class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
     status = QtCore.pyqtSignal([])
     line_received = QtCore.pyqtSignal([str])
     def __init__(self, history_model, config_model, *args, **kwargs):
         QtCore.QObject.__init__(self)
+        sender.GrblStateMachine.__init__(self)
         self.config_model = config_model
         self.history_model = history_model
         self.job_model = None
@@ -22,16 +24,16 @@ class GrblStateMachineWithSignals(QtCore.QObject, sender.GrblStateMachine):
         self.pins = ""
         self.current_status = ('Initialized', {}, '', None)
         self.cancel_in_progress = False
-        sender.GrblStateMachine.__init__(self, Global.settings.device, Global.settings.speed)
+        self.open(*args, **kwargs)
     def handle_line(self, line):
         if not (line.startswith('<') and line.endswith('>')):
-            self.line_received.emit(line)
+            self.line_received.emit(str(line))
         return sender.GrblStateMachine.handle_line(self, line)
     def process_cooked_status(self, mode, args):
         if 'F' in args:
             self.last_feed = int(args['F'])
         if 'FS' in args:
-            self.last_feed, self.last_speed = map(float, args['FS'])
+            self.last_feed, self.last_speed = list(map(float, args['FS']))
         if 'Ov' in args:
             self.overrides = args['Ov']
             self.accessories = args.get('A', '')
@@ -162,7 +164,8 @@ class GrblInterface(QtCore.QThread):
                     self.onStatus()
                     time.sleep(0.1)
             except Exception as e:
-                print str(e)
+                print(str(e))
+                traceback.print_exc()
     # Worker thread
     def onStatus(self):
         self.status.emit()
@@ -171,7 +174,7 @@ class GrblInterface(QtCore.QThread):
         self.line_received.emit(line)
     # UI thread
     def connectToGrbl(self):
-        self.grbl = GrblStateMachineWithSignals(self.history, self.config_model)
+        self.grbl = GrblStateMachineWithSignals(self.history, self.config_model, Global.settings.device, Global.settings.speed)
         self.grbl.status.connect(self.onStatus)
         self.grbl.line_received.connect(self.onLineReceived)
         self.grbl.set_job(self.job)
@@ -216,9 +219,9 @@ class GrblInterface(QtCore.QThread):
             raise ValueError("connection not established")
     @staticmethod
     def canAcceptCommands(mode):
-        return mode not in ['Home', 'Alarm']
+        return mode not in ['Home', 'Alarm', 'Disconnected', 'Connect Timeout']
     def isConnected(self):
-        return (self.grbl is not None) and self.getStatus()[0] not in ['Connecting', 'Resetting']
+        return (self.grbl is not None) and self.getStatus()[0] not in ['Connecting', 'Resetting', 'Disconnected', 'Connect Timeout']
     def isRunningAJob(self):
         return (self.job is not None) and self.job.running
     def isJobPaused(self):

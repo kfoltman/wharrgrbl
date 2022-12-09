@@ -2,7 +2,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from helpers.gui import *
-import tool
+from . import tool
 
 class ToolEditDlg(PropertyDialog):
     properties = [

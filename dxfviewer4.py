@@ -2,21 +2,21 @@ import math
 import re
 import sys
 import time
-from cam.tool import *
-from cam.operation import *
-from cam.tooledit import *
-from cam.matedit import *
+from .cam.tool import *
+from .cam.operation import *
+from .cam.tooledit import *
+from .cam.matedit import *
 
 import dxfgrabber
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
-from sender.jobviewer import *
-from helpers.dxf import dxfToObjects
-from helpers.gui import *
-from helpers.geom import *
-from helpers.flatitems import *
+from .sender.jobviewer import *
+from .helpers.dxf import dxfToObjects
+from .helpers.gui import *
+from .helpers.geom import *
+from .helpers.flatitems import *
 
 class DXFViewer(PreviewBase):
     selected = pyqtSignal([])
@@ -54,12 +54,12 @@ class DXFViewer(PreviewBase):
         self.activeItemPen = QPen(QColor(0, 255, 0), 0)
         #self.drawingPen.setCapStyle(Qt.RoundCap)
         #self.drawingPen.setJoinStyle(Qt.RoundJoin)
-        for i in xrange(self.operations.rowCount()):
+        for i in range(self.operations.rowCount()):
             op = self.operations.item(i).operation
             self.curOperation = op
             for n in op.previewPaths:
                 n.addToPath(self, self.drawingPath, True, False)
-        for i in xrange(self.operations.rowCount()):
+        for i in range(self.operations.rowCount()):
             op = self.operations.item(i).operation
             self.curOperation = op
             for n in op.previewPaths:
@@ -78,7 +78,7 @@ class DXFViewer(PreviewBase):
         mind = matches[0][1] if len(matches) > 0 else None
         second = matches[1][1] if len(matches) > 1 else None
         if second is not None and abs(second - mind) < 1 / self.getScale():
-            print "Warning: Multiple items at similar distance"
+            print("Warning: Multiple items at similar distance")
         if mind < 10 / self.getScale():
             return matches[0][0]
     def updateSelection(self):

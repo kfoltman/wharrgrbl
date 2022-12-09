@@ -8,7 +8,7 @@ def fmtfloat(f):
 
 def gencode(**kwargs):
     s = ''
-    for k in sorted(kwargs.keys(), key = lambda k: (k.upper() != 'G', k)):
+    for k in sorted(list(kwargs.keys()), key = lambda k: (k.upper() != 'G', k)):
         v = kwargs[k]
         if v is None:
             continue

@@ -1,7 +1,7 @@
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from helpers.gui import *
-import tool
+from . import tool
 
 class MaterialEditDlg(PropertyDialog):
     properties = [

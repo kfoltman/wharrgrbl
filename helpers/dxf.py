@@ -53,6 +53,6 @@ def dxfToObjects(drawing):
             polyline = DrawingPolyline(nodes)
             objects.append(polyline)
         else:
-            print "Unknown DXF type:", str(it)
+            print("Unknown DXF type:", str(it))
     return objects
     
