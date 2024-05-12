@@ -2,10 +2,10 @@ import math
 import sys
 sys.path += ['.']
 from PyQt5 import QtCore, QtGui, QtWidgets
-from .cam.rdkic import *
-from .helpers.preview import PathPreview
-from .cam.mill import *
-from .helpers.gui import MenuHelper
+from cam.rdkic import *
+from helpers.preview import PathPreview
+from cam.mill import *
+from helpers.gui import MenuHelper
 
 class CAMApplication(QtWidgets.QApplication):
     pass
@@ -79,7 +79,7 @@ class CAMMainWindow(QtWidgets.QMainWindow, MenuHelper):
     def initUI(self):
         self.view = ViewParams()
         if len(sys.argv) > 1:
-            self.view.board = KicadBoard(file(sys.argv[1], "r"))
+            self.view.board = KicadBoard(open(sys.argv[1], "r"))
                 
         self.w = PathPreview(self.view, self.milling_params)
         menuBar = self.menuBar()
@@ -127,7 +127,7 @@ class CAMMainWindow(QtWidgets.QMainWindow, MenuHelper):
     def onFileOpen(self):
         fname, ffilter = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', '.', "Kicad PCB files (*.kicad_pcb)")
         if fname != '':
-            self.setBoard(KicadBoard(file(fname, "r")))
+            self.setBoard(KicadBoard(open(fname, "r")))
         
     def onViewLayer(self, layer):
         self.view.cur_layer = layer

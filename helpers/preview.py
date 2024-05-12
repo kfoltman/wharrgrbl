@@ -49,10 +49,10 @@ class PathPreview(QtWidgets.QWidget):
             #print self.rubberbandRect
 
     def wheelEvent(self, e):
-        if e.delta() > 0:
+        if e.angleDelta().y() > 0:
             self.view.scale *= 1.25
             self.recalcAndRepaint()
-        if e.delta() < 0:
+        if e.angleDelta().y() < 0:
             self.view.scale /= 1.25
             self.recalcAndRepaint()
 
@@ -71,14 +71,14 @@ class PathPreview(QtWidgets.QWidget):
         #pen = QtGui.QPen(QtGui.QColor(200, 200, 200))
         pen = QtGui.QPen(QtGui.QColor(150, 150, 110))
         pen.setJoinStyle(0x40)
-        pen.setWidth(self.view.scale * self.pathgen.milling_params.tool_width)
+        pen.setWidthF(self.view.scale * self.pathgen.milling_params.tool_width)
 
         if self.view.realistic_mode:
             pen2 = QtGui.QPen(QtGui.QColor(150, 150, 110))
         else:
             pen2 = QtGui.QPen(QtGui.QColor(230, 230, 110))
         pen2.setJoinStyle(0x40)
-        pen2.setWidth(self.view.scale * self.pathgen.milling_params.tool_width)
+        pen2.setWidthF(self.view.scale * self.pathgen.milling_params.tool_width)
         
         copper = QtGui.QColor(220, 160, 130)
         qp.setPen(pen)
@@ -89,7 +89,7 @@ class PathPreview(QtWidgets.QWidget):
             qp.setBrush(copper)
         else:
             qp.setBrush(QtGui.QBrush(QtGui.QColor(240, 0, 120), 4))
-        qp.drawRect(*self.pathgen.getArea())
+        qp.drawRect(QtCore.QRectF(*self.pathgen.getArea()))
         
         if self.view.realistic_mode:
             brush = QtGui.QBrush(copper)

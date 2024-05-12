@@ -132,7 +132,7 @@ class GcodeOutputBase:
 class GcodeOutput(GcodeOutputBase):
     def __init__(self, filename, operation = None, material = None, tool = None):
         GcodeOutputBase.__init__(self, operation = operation, material = material, tool = tool)
-        self.f = file(filename, "w")
+        self.f = open(filename, "w")
         self.preamble()
     def write(self, line):
         self.f.write(line + "\n")

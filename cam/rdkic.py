@@ -148,12 +148,22 @@ class KicadBoard(object):
                     elif sym == 'layer':
                         layer = sym2str(si[1])
                     elif sym == 'filled_polygon':
+                        fpLayer = layer
+                        ptsIn = None
                         pts = []
-                        for xy in si[1][1:]:
+                        for fpItem in si[1:]:
+                            fpSym = sym2str(fpItem[0])
+                            if fpSym == 'pts':
+                                ptsIn = fpItem[1:]
+                            elif fpSym == 'layer':
+                                fpLayer = fpItem[1]
+                        if ptsIn is None:
+                            raise ValueError("No pts item inside filled_polygon")
+                        for xy in ptsIn:
                             if sym2str(xy[0]) != 'xy':
-                                raise ValueError("Invalid item inside filled_polygon")
+                                raise ValueError("Invalid item inside filled_polygon pts")
                             pts.append((float(xy[1]), float(xy[2])))
-                        lp = self.get_layer(layer).polygons
+                        lp = self.get_layer(fpLayer).polygons
                         if net not in lp:
                             lp[net] = [pts]
                         else:
