@@ -92,7 +92,7 @@ class KicadBoard(object):
                 parsedict(self.setup, e, {'pcbplotparams' : self.pcbplotparams})
             elif sym == 'net':
                 self.nets[int(e[1])] = sym2str(e[2])
-            elif sym == 'module':
+            elif sym == 'module' or sym == 'footprint':
                 x, y, angle = None, None, 0
                 for si in e[2:]:
                     if type(si) is sexpdata.Symbol:
@@ -213,7 +213,7 @@ class KicadBoard(object):
             self.get_layer("F.Cu").pads.append(pad)
             self.get_layer("B.Cu").pads.append(pad)
         for l in pad.layers:
-            if l == "*.Cu":
+            if l == "*.Cu" or l == 'F&B.Cu':
                 self.get_layer("F.Cu").pads.append(pad)
                 self.get_layer("B.Cu").pads.append(pad)
             else:
